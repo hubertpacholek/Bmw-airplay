@@ -1,0 +1,37 @@
+name: Catalog release
+
+# The release `catalog` follows catalog.json on main: the Store reads it for the source
+# <owner>/<repo> on Releases.
+on:
+  push:
+    branches: [main]
+    paths: ['catalog.json', 'packages/**', 'hp_airplay.png', 'tools/release_catalog.py', '.github/workflows/catalog.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: catalog-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Release files
+        run: python3 tools/release_catalog.py "$GITHUB_REPOSITORY" out
+      - name: Publish the release `catalog`
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh release view catalog >/dev/null 2>&1; then
+            gh release create catalog --title "Catalog" --notes "The Store's catalog: Store > Settings > Add source > $GITHUB_REPOSITORY > Releases." --latest=false --target "$GITHUB_SHA"
+          fi
+          gh release upload catalog out/* --clobber
+          # assets no longer listed (older versions) go
+          keep=$(ls out)
+          gh release view catalog --json assets --jq '.assets[].name' | while read -r name; do
+            echo "$keep" | grep -qxF "$name" || gh release delete-asset catalog "$name" --yes
+          done

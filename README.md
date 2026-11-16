@@ -14,8 +14,8 @@ filmach (`native/uxplay-mgu/README.md`, „The jitter buffer”).
 
 1. Jeśli masz **myAirPlay** od aurelmarius, usuń najpierw w Store aplikację i jej usługę:
    oba odbiorniki używają tych samych portów i tej samej nazwy dla iPhone'a.
-2. W aucie: **Store → Settings → Add source** i adres
-   `https://raw.githubusercontent.com/hubertpacholek/bmw-airplay/main/catalog.json`.
+2. W aucie: **Store → Settings → Add source**, wpisz `hubertpacholek/Bmw-airplay` i wybierz
+   **Releases**. (Działa też adres `https://raw.githubusercontent.com/hubertpacholek/Bmw-airplay/main/catalog.json`.)
 3. Zainstaluj **AirPlay HP** (usługa AirPlay HP instaluje się razem z nią).
 4. iPhone w Wi-Fi auta: **Centrum sterowania → Odbicie lustrzane ekranu → BMW iDrive**.
 
@@ -24,6 +24,7 @@ filmach (`native/uxplay-mgu/README.md`, „The jitter buffer”).
 ```sh
 sh native/uxplay-mgu/build.sh      # odbiornik w Dockerze (ubuntu:18.04, glibc 2.27 jak w jednostce)
 python3 tools/make_catalog.py      # aplikacja, usługa i catalog.json w packages/
+                                   # po wysłaniu na main workflow „Catalog release” aktualizuje wydanie `catalog`
 for t in tests/*.js; do node "$t"; done
 cc -O2 -pthread native/uxplay-mgu/renderer/test_jitter.c native/uxplay-mgu/renderer/mgu_jitter.c -lm -o /tmp/tj && /tmp/tj
 ```
