@@ -3,7 +3,7 @@
  * mgu_renderer.c - UxPlay's renderer API (renderers/video_renderer.h, audio_renderer.h, mux_renderer.h)
  * for the iDrive 7 head unit, stage 1: no GStreamer, nothing is shown or played. It counts what the
  * iPhone sends and reports it on stdout, one line a second while a stream runs, each line
- * "MGU {json}", read by the service (native/aurelm-myairplay, receiver mode):
+ * "MGU {json}", read by the service (native/hp-airplay, receiver mode):
  *
  *   {"ev":"client","model":"iPhone18,2","name":"..."}           the client that connected
  *   {"ev":"video","codec":"h264","w":..,"h":..,"sw":..,"sh":..} the stream's size (source and shown)
@@ -19,6 +19,12 @@
  *
  * Stage 2: every access unit also goes to the GPU decoder (video/src/mgu_video.cpp), which writes the pictures
  * to mgu-render's frame file; stats then carry "shown" (pictures written) and "decerr" (failed access units).
+ *
+ * Screen mirroring goes through a jitter buffer (renderer/mgu_jitter.c): the access units and sound packets are handed
+ * to the decoder and the sound at an even pace, by the iPhone's timestamps, MGU_JITTER_MS (default 200, 0..1000) after
+ * the fastest of them arrive; 0 hands each on as it arrives. The command "jitter <ms>" on stdin changes it. Stats then
+ * carry "jms" (the delay), "vq" / "aq" (access units / sound packets waiting) and "vlate" / "aqlate" (handed on more
+ * than 40 ms late).
  *
  * Stage 4: a video the iPhone hands over (AirPlay's video button: YouTube's HLS, served by UxPlay on localhost, or
  * a direct address) is played by player/mgu_hls.cpp in place of GStreamer's playbin: UxPlay starts it with the
@@ -42,6 +48,7 @@
 #include "mgu_video.h"
 #include "mgu_audio.h"
 #include "mgu_hls.h"
+#include "mgu_jitter.h"
 #include <unistd.h>
 #include <grp.h>
 #include <pwd.h>
@@ -79,21 +86,36 @@ static struct {
     bool running;
 } st;
 
+/* the jitter buffer's queues: access units for the GPU decoder, sound packets for the sound */
+static mgu_jitter_t *vq, *aq;
+static void present_video(const unsigned char *data, int len, int64_t due_ns, mgu_jitter_t *q, unsigned gen);
+static void play_audio(const unsigned char *data, int len, int64_t due_ns, mgu_jitter_t *q, unsigned gen);
+static pthread_once_t queues_once = PTHREAD_ONCE_INIT;
+static void make_queues(void) {
+    const char *e = getenv("MGU_JITTER_MS");
+    if (e && *e) mgu_jitter_set_delay(atoi(e));
+    vq = mgu_jitter_new(present_video, false);   /* waits itself, after decoding: the picture is ready when due */
+    aq = mgu_jitter_new(play_audio, true);
+}
+static void queues(void) { pthread_once(&queues_once, make_queues); }
+
 static double now_s(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec + ts.tv_nsec / 1e9;
 }
 
-/* one line, flushed (stdout is a pipe to the service) */
+/* one line, whole (several threads emit) and flushed (stdout is a pipe to the service) */
 static void emit(const char *fmt, ...) G_GNUC_PRINTF(1, 2);
 static void emit(const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
+    flockfile(stdout);
     fputs("MGU ", stdout);
     vfprintf(stdout, fmt, ap);
     fputc('\n', stdout);
     fflush(stdout);
+    funlockfile(stdout);
     va_end(ap);
 }
 
@@ -113,11 +135,16 @@ static void stats_locked(double t) {
     if (dt < 1.0) return;
     mgu_audio_stats_t a;
     mgu_audio_stats(&a);
+    mgu_jitter_stats_t jv, ja;
+    mgu_jitter_stats(vq, &jv);
+    mgu_jitter_stats(aq, &ja);
     emit("{\"ev\":\"stats\",\"frames\":%llu,\"fps\":%.1f,\"kbps\":%.0f,\"idr\":%llu,\"sps\":%llu,\"audio\":%llu,\"shown\":%llu,\"decerr\":%llu,"
-         "\"adec\":%llu,\"alate\":%llu,\"afull\":%llu,\"aerr\":%llu,\"axrun\":%llu,\"adev\":%.0f}",
+         "\"adec\":%llu,\"alate\":%llu,\"afull\":%llu,\"aerr\":%llu,\"axrun\":%llu,\"adev\":%.0f,"
+         "\"jms\":%d,\"vq\":%u,\"vlate\":%llu,\"aq\":%u,\"aqlate\":%llu}",
          (unsigned long long) st.frames, st.win_frames / dt, st.win_bytes * 8.0 / 1000.0 / dt,
          (unsigned long long) st.idr, (unsigned long long) st.sps, (unsigned long long) st.audio_packets, st.shown, st.decerr,
-         a.decoded, a.dropped_late, a.dropped_full, a.errors, a.xruns, a.device_ms);
+         a.decoded, a.dropped_late, a.dropped_full, a.errors, a.xruns, a.device_ms,
+         jv.delay_ms, jv.queued, jv.late, ja.queued, ja.late);
     st.win_frames = st.win_bytes = 0;
     st.win_start = t;
 }
@@ -126,15 +153,18 @@ static void stats_locked(double t) {
 static void emit_json(const char *json) { emit("%s", json); }
 static char *hls_uri = NULL;     /* the address of the video to play (stage 4), NULL for screen mirroring */
 
-/* The service's commands on stdin, one a line, for a played video: the app's controls on the iDrive.
- *   pause | resume | seek <seconds>
- * The iPhone follows them through /playback-info (the rate, the position), as it follows its own. */
+/* The service's commands on stdin, one a line: for a played video, the app's controls on the iDrive (the iPhone
+ * follows them through /playback-info, the rate and the position, as it follows its own); for screen mirroring, the
+ * jitter buffer's delay.
+ *   pause | resume | seek <seconds> | jitter <ms> */
 static void *mgu_commands(void *arg) {
     (void) arg;
     char line[128];
     while (fgets(line, sizeof line, stdin)) {
         double t = 0;
-        if (!strncmp(line, "pause", 5)) mgu_hls_pause(1);
+        int ms = 0;
+        if (sscanf(line, "jitter %d", &ms) == 1) mgu_jitter_set_delay(ms);
+        else if (!strncmp(line, "pause", 5)) mgu_hls_pause(1);
         else if (!strncmp(line, "resume", 6)) mgu_hls_pause(0);
         else if (sscanf(line, "seek %lf", &t) == 1 && t >= 0) mgu_hls_seek(t);
         else continue;
@@ -159,6 +189,7 @@ void video_renderer_init(logger_t *logger, const char *server_name, videoflip_t 
     mgu_hls_set_emit(emit_json);
     free(hls_uri);
     hls_uri = uri ? strdup(uri) : NULL;
+    queues();
     static bool once = false;
     if (!once) {
         once = true;
@@ -180,6 +211,7 @@ void video_renderer_start() {
 
 void video_renderer_stop() {
     mgu_hls_stop();   /* a video playing (stage 4): ended, its sound and pictures with it */
+    mgu_jitter_flush(vq);   /* nothing reaches the decoder after it stops */
     pthread_mutex_lock(&mu);
     bool was = st.running;
     st.running = false;
@@ -208,8 +240,38 @@ int video_renderer_cycle() { return 0; }
 bool video_renderer_is_paused() { float r = 1; mgu_hls_info(NULL, NULL, NULL, NULL, &r, NULL, NULL); return r == 0.0f; }
 bool video_renderer_eos_watch() { return mgu_hls_eos() != 0; }
 
+/* the decoder holds each picture until it is due; 1 drops it (the queue was flushed) */
+struct vwait { mgu_jitter_t *q; unsigned gen; };
+static int vwait(long long pts_ms, void *arg) {
+    const struct vwait *w = arg;
+    if (pts_ms < 0) return 0;
+    const int64_t due = (int64_t) pts_ms * 1000000LL;
+    if (mgu_jitter_wait(w->q, due, w->gen)) return 1;
+    if (mgu_jitter_now() > due + 40000000LL) mgu_jitter_late(w->q);
+    return 0;
+}
+
+/* an access unit off the queue: decoded, its picture written to the frame file when due */
+static void present_video(const unsigned char *data, int len, int64_t due_ns, mgu_jitter_t *q, unsigned gen) {
+    struct vwait w = { q, gen };
+    unsigned long long shown = 0, decerr = 0;
+    int v = mgu_video_frame_timed(data, len, due_ns / 1000000LL, vwait, &w, &shown, &decerr);
+    if (v == 1) {
+        unsigned vw = 0, vh = 0;
+        mgu_video_size(&vw, &vh);
+        emit("{\"ev\":\"decoder\",\"ok\":true,\"path\":\"%s\",\"w\":%u,\"h\":%u}", mgu_video_path(), vw, vh);
+    } else if (v == -1) {
+        char e[200];
+        clean(e, sizeof e, mgu_video_error());
+        emit("{\"ev\":\"decoder\",\"ok\":false,\"error\":\"%s\"}", e);
+    }
+    pthread_mutex_lock(&mu);
+    st.shown = shown; st.decerr = decerr;
+    pthread_mutex_unlock(&mu);
+}
+
 uint64_t video_renderer_render_buffer(unsigned char *data, int *data_len, int *nal_count, uint64_t *ntp_time) {
-    (void) nal_count; (void) ntp_time;
+    (void) nal_count;
     int len = data_len ? *data_len : 0;
     bool idr = false, sps = false;
     /* Annex B: 00 00 00 01 <nal header> */
@@ -221,20 +283,10 @@ uint64_t video_renderer_render_buffer(unsigned char *data, int *data_len, int *n
             i += 3;
         }
     }
-    /* the GPU decoder (stage 2), outside the stats lock: it takes a few ms */
-    unsigned long long shown = 0, decerr = 0;
-    int v = mgu_video_frame(data, len, &shown, &decerr);
-    if (v == 1) {
-        unsigned w = 0, h = 0;
-        mgu_video_size(&w, &h);
-        emit("{\"ev\":\"decoder\",\"ok\":true,\"path\":\"%s\",\"w\":%u,\"h\":%u}", mgu_video_path(), w, h);
-    } else if (v == -1) {
-        char e[200];
-        clean(e, sizeof e, mgu_video_error());
-        emit("{\"ev\":\"decoder\",\"ok\":false,\"error\":\"%s\"}", e);
-    }
+    /* to the GPU decoder (stage 2) through the jitter buffer */
+    queues();
+    mgu_jitter_push(vq, data, len, ntp_time ? *ntp_time : 0);
     pthread_mutex_lock(&mu);
-    st.shown = shown; st.decerr = decerr;
     st.frames++; st.win_frames++;
     st.bytes += len; st.win_bytes += len;
     if (idr) st.idr++;
@@ -245,7 +297,7 @@ uint64_t video_renderer_render_buffer(unsigned char *data, int *data_len, int *n
 }
 
 void video_renderer_display_jpeg(const void *data, int *data_len) { (void) data; (void) data_len; }
-void video_renderer_flush() {}
+void video_renderer_flush() { mgu_jitter_flush(vq); }
 unsigned int video_renderer_listen(void *loop, int id) { (void) loop; (void) id; return 0; }
 void video_renderer_destroy() { video_renderer_stop(); mgu_video_close(); }
 bool waiting_for_x11_window() { return false; }
@@ -284,12 +336,20 @@ void video_renderer_set_window_handle(uintptr_t handle) { (void) handle; }
 
 void audio_renderer_init(logger_t *logger, const char *audiosink, const bool *audio_sync, const bool *video_sync, const char *artp_pipeline) {
     (void) logger; (void) audiosink; (void) audio_sync; (void) video_sync; (void) artp_pipeline;
+    queues();
+}
+/* a sound packet off the queue, when due: decoded and played */
+static void play_audio(const unsigned char *data, int len, int64_t due_ns, mgu_jitter_t *q, unsigned gen) {
+    (void) due_ns; (void) q; (void) gen;
+    mgu_audio_packet(data, len);
 }
 static bool sound_on = false;   /* the sound started and not stopped yet */
 void audio_renderer_start(unsigned char *compression_type) {
     const int ct = compression_type ? (int) *compression_type : -1;
     emit("{\"ev\":\"audio\",\"ct\":%d}", ct);
     char e[200], d[120];
+    queues();
+    mgu_jitter_flush(aq);
     if (mgu_audio_start(ct) == 0) {
         clean(d, sizeof d, mgu_audio_device());
         emit("{\"ev\":\"sound\",\"ok\":true,\"device\":\"%s\",\"ct\":%d}", d, ct);
@@ -301,12 +361,14 @@ void audio_renderer_start(unsigned char *compression_type) {
 }
 /* UxPlay calls this when the iPhone's last connection closes (conn_destroy): the session is over, whoever ended it */
 void audio_renderer_stop() {
+    mgu_jitter_flush(aq);
     mgu_audio_stop();
     if (sound_on) { sound_on = false; emit("{\"ev\":\"soundstop\"}"); }
 }
 void audio_renderer_render_buffer(unsigned char *data, int *data_len, unsigned short *seqnum, uint64_t *ntp_time) {
-    (void) seqnum; (void) ntp_time;
-    if (data && data_len) mgu_audio_packet(data, *data_len);   /* stage 3: decoded and played (outside the stats lock) */
+    (void) seqnum;
+    queues();
+    if (data && data_len) mgu_jitter_push(aq, data, *data_len, ntp_time ? *ntp_time : 0);   /* stage 3, through the jitter buffer */
     pthread_mutex_lock(&mu);
     st.audio_packets++;
     st.audio_bytes += data_len ? *data_len : 0;
@@ -314,8 +376,8 @@ void audio_renderer_render_buffer(unsigned char *data, int *data_len, unsigned s
     pthread_mutex_unlock(&mu);
 }
 void audio_renderer_set_volume(double volume) { mgu_audio_volume(volume); }
-void audio_renderer_flush() { mgu_audio_flush(); }
-void audio_renderer_destroy() { mgu_audio_stop(); }
+void audio_renderer_flush() { mgu_jitter_flush(aq); mgu_audio_flush(); }
+void audio_renderer_destroy() { mgu_jitter_flush(aq); mgu_audio_stop(); }
 unsigned int audio_renderer_listen(void *loop, int id) { (void) loop; (void) id; return 0; }
 
 /* ---------------- recording (-mp4): not on the head unit ---------------- */

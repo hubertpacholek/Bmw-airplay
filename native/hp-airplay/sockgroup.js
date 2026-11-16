@@ -1,6 +1,6 @@
 'use strict';
 /**
- * sockgroup.js - the control socket for the app myAirPlay only.
+ * sockgroup.js - the control socket for the app AirPlay HP only.
  *
  * Every OAP app process is in the group tm_oap_app, so a socket in that group is open to every app on
  * the head unit (found by Vizualyse/idrive-apps, knowledge/head-unit.md). Each app also runs as its own
@@ -13,8 +13,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const APP = 'aurelm_myairplay';
-const SOCK = '/run/aurelm-myairplay.sock';
+const APP = 'hp_airplay';
+const SOCK = '/run/hp-airplay.sock';
 
 /** the gid of app `name`'s folder, or null while it is not installed */
 function appGid(name, oapDir) {
@@ -43,8 +43,8 @@ if (require.main === module) {
     // never fails: a failing ExecStartPost would fail the socket unit
     try {
         const g = apply(process.argv[2] || SOCK);
-        console.log('aurelm-myairplay socket: ' + (g === null ? 'root only (the app is not installed)' : 'group ' + g));
-    } catch (e) { console.log('aurelm-myairplay socket: ' + e.message); }
+        console.log('hp-airplay socket: ' + (g === null ? 'root only (the app is not installed)' : 'group ' + g));
+    } catch (e) { console.log('hp-airplay socket: ' + e.message); }
     process.exit(0);
 }
 

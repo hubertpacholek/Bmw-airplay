@@ -1,12 +1,12 @@
 'use strict';
 /**
- * The receiver's sound to the speakers (apps/aurelm_myairplay/car_audio.js): node tests/airplay_car_audio.test.js
+ * The receiver's sound to the speakers (apps/hp_airplay/car_audio.js): node tests/airplay_car_audio.test.js
  * Against a fake audio manager: the order of the calls (as Moonride's), only our own connection ever disconnected (287
  * is shared with Emby), our crash leftover cleared, another app's connection left alone, refusals reported.
  */
 const assert = require('assert');
 const path = require('path');
-const { createCarAudio } = require(path.join(__dirname, '..', 'apps', 'aurelm_myairplay', 'car_audio'));
+const { createCarAudio } = require(path.join(__dirname, '..', 'apps', 'hp_airplay', 'car_audio'));
 
 function fakeSignals(opts) {
     const o = opts || {};

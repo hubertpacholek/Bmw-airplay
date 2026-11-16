@@ -1,6 +1,6 @@
 'use strict';
 /**
- * The AirPlay network test service (native/aurelm-myairplay): node tests/myairplay_service.test.js
+ * The AirPlay network test service (native/hp-airplay): node tests/airplay_service.test.js
  * DNS codec, the AirPlay records, the firewall rules (against a fake nft), and the probe end to end on
  * the loopback interface: an mDNS query gets the receiver back, a connection to its port is noted.
  */
@@ -10,7 +10,7 @@ const os = require('os');
 const net = require('net');
 const path = require('path');
 const dgram = require('dgram');
-const DIR = path.join(__dirname, '..', 'native', 'aurelm-myairplay');
+const DIR = path.join(__dirname, '..', 'native', 'hp-airplay');
 const dns = require(path.join(DIR, 'dns'));
 const ap = require(path.join(DIR, 'airplay'));
 const nft = require(path.join(DIR, 'nft'));
@@ -64,7 +64,7 @@ test('nft: rules go at the top of every IPv4 input and output chain, and come ou
         '\t}',
         '\tchain output { # handle 2',
         '\t\ttype filter hook output priority 0; policy accept;',
-        '\t\toifname "wlan0" udp dport 5353 accept comment "aurelm-myairplay" # handle 9',
+        '\t\toifname "wlan0" udp dport 5353 accept comment "hp-airplay" # handle 9',
         '\t}',
         '\tchain logblocked { # handle 3',
         '\t}',
@@ -98,11 +98,11 @@ test('nft: rules go at the top of every IPv4 input and output chain, and come ou
     assert.ok(lines.indexOf('delete rule ip filter output handle 9') >= 0);
     const inserts = lines.filter((l) => l.indexOf('insert rule') === 0);
     assert.strictEqual(inserts.length, 7);
-    assert.ok(inserts.indexOf('insert rule inet mgu_uplink input iifname "wlan0" tcp dport { 7300 } accept comment "aurelm-myairplay"') >= 0);
+    assert.ok(inserts.indexOf('insert rule inet mgu_uplink input iifname "wlan0" tcp dport { 7300 } accept comment "hp-airplay"') >= 0);
     // no receiver port (none was free): mDNS only
     assert.deepStrictEqual(nft.rulesFor('input', 'wlan0', []), ['iifname "wlan0" udp dport 5353 accept']);
     // mDNS out only from this service (root)
-    assert.ok(inserts.indexOf('insert rule ip filter output oifname "wlan0" meta skuid 0 udp dport 5353 accept comment "aurelm-myairplay"') >= 0);
+    assert.ok(inserts.indexOf('insert rule ip filter output oifname "wlan0" meta skuid 0 udp dport 5353 accept comment "hp-airplay"') >= 0);
 
     fs.writeFileSync(calls, '');
     assert.strictEqual(nft.remove({ nft: fake }), 1);
@@ -270,7 +270,7 @@ test('sockgroup: the socket gets the app\'s own group, root only without the app
     app(12300, 'some_other_app');
     assert.strictEqual(sg.apply(sock, oap), null);
     assert.strictEqual(fs.statSync(sock).mode & 0o777, 0o600);
-    app(12345, 'aurelm_myairplay');
+    app(12345, 'hp_airplay');
     const want = fs.statSync(path.join(oap, 'oap_12345')).gid;
     if (want === 0) return;   // not root here: no folder of another group to find
     assert.strictEqual(sg.apply(sock, oap), 12345);
@@ -464,7 +464,7 @@ test('receiver with the video button: -hls and the H.264 filter, the proxy for i
         const args = s.rx.lines.find((l) => / args /.test(l));
         assert.ok(/ -hls -custom AVC:720,720;HEVC:0;VP9:0;AV1:0$/.test(args), args);
         const env = s.rx.lines.find((l) => / env /.test(l));
-        assert.ok(new RegExp('LANGUAGE=zxx http_proxy=http://127\\.0\\.0\\.1:' + port + ' no_proxy=localhost,127\\.0\\.0\\.1 ca=.*aurelm-myairplay/cacert\\.pem$').test(env), env);
+        assert.ok(new RegExp('LANGUAGE=zxx http_proxy=http://127\\.0\\.0\\.1:' + port + ' no_proxy=localhost,127\\.0\\.0\\.1 ca=.*hp-airplay/cacert\\.pem$').test(env), env);
         // the proxy runs (a child, as the internet uid on the car)
         assert.strictEqual(s.rx.proxy.state, 'on');
         await new Promise((res, rej) => { const c = net.connect(port, '127.0.0.1', () => { c.destroy(); res(); }); c.on('error', rej); });
@@ -523,12 +523,12 @@ test('AirPlay network: the car Wi-Fi first by default, the iPhone hotspot first 
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rxnet-'));
     const probe = P.createProbe({ stateDir: tmp, nft: false, only: ['lo'], rxUid: null, proxyUid: null });
     // the order is the probe's; checked through its source (the interfaces of this machine are not a car's)
-    assert.ok(/st\.net === 'hotspot' \? \['iphone-hotspot', 'uplink', 'car-wifi', 'wifi'\] : \['car-wifi', 'iphone-hotspot', 'uplink', 'wifi'\]/.test(fs.readFileSync(require.resolve('../native/aurelm-myairplay/probe.js'), 'utf8')));
+    assert.ok(/st\.net === 'hotspot' \? \['iphone-hotspot', 'uplink', 'car-wifi', 'wifi'\] : \['car-wifi', 'iphone-hotspot', 'uplink', 'wifi'\]/.test(fs.readFileSync(require.resolve('../native/hp-airplay/probe.js'), 'utf8')));
     assert.ok(probe);
 });
 
 test('proxy: CONNECT tunnels to the allowed ports only, plain http passed on, names through the uplink', async () => {
-    const { createProxy } = require(path.join(__dirname, '..', 'native', 'aurelm-myairplay', 'proxy'));
+    const { createProxy } = require(path.join(__dirname, '..', 'native', 'hp-airplay', 'proxy'));
     const http = require('http');
     // a "server on the internet": echoes over raw tcp, and answers http
     const echo = net.createServer((c) => c.pipe(c)).listen(0, '127.0.0.1');

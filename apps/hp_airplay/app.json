@@ -1,8 +1,8 @@
 {
-  "id": "aurelm_myairplay",
-  "title": "myAirPlay",
-  "description": "The head unit as an AirPlay receiver for an iPhone: screen mirroring on the centre screen with the sound on the car's speakers (also with wireless CarPlay connected), and videos sent with the AirPlay button (YouTube) played by the head unit itself, with their controls on the iDrive. The picture shows while parked. Needs the myAirPlay service.",
-  "version": "1.0.0",
+  "id": "hp_airplay",
+  "title": "AirPlay HP",
+  "description": "The head unit as an AirPlay receiver for an iPhone: screen mirroring on the centre screen with the sound on the car's speakers (also with wireless CarPlay connected), and videos sent with the AirPlay button (YouTube) played by the head unit itself, with their controls on the iDrive. The picture shows while parked. Needs the AirPlay HP service.",
+  "version": "1.1.0",
   "vendor": "custom",
   "loggingId": "OA9A",
   "iconGlyph": "AP",
@@ -26,13 +26,13 @@
     }
   },
   "requires": {
-    "aurelm-myairplay": "1.0.0"
+    "hp-airplay": "1.1.0"
   },
   "screens": [
     {
       "name": "MAIN",
       "kind": "canvas",
-      "title": "myAirPlay",
+      "title": "AirPlay HP",
       "buttons": [
         [
           "BTN_RX",

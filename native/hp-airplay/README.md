@@ -1,13 +1,13 @@
-# aurelm-myairplay
+# hp-airplay
 
-The service behind **myAirPlay** (`apps/aurelm_myairplay`). It was developed and tested in the car as "AirPlay
+The service behind **AirPlay HP** (`apps/hp_airplay`). It was developed and tested in the car as "AirPlay
 Test" in aurelmarius/bmw-test-apps; the notes below keep that history (versions 0.x).
 
-The service behind the app **myAirPlay** (`apps/aurelm_myairplay`): a network test for a future
+The service behind the app **AirPlay HP** (`apps/hp_airplay`): a network test for a future
 AirPlay receiver on the iDrive 7 head unit. It answers one question: **can an iPhone find the head unit
 as an AirPlay receiver and connect to it?** Nothing is streamed; it is not a receiver.
 
-**Nothing runs at boot.** systemd listens on `/run/aurelm-myairplay.sock` (socket activation); the
+**Nothing runs at boot.** systemd listens on `/run/hp-airplay.sock` (socket activation); the
 app's first connection starts the service, and it exits by itself 10 minutes after the last test and
 the last request. Idle until the app starts a test. While a test runs (15 minutes from the app, 60 at
 most):
@@ -16,7 +16,7 @@ most):
    `ip filter`, which its firewall drops in by default, and mgu-uplink's `inet mgu_uplink`, which lets
    nothing in), for the Wi-Fi-side interfaces only: in, the receiver's tcp port (AirPlay) and udp 5353
    (mDNS); out, that tcp port and udp 5353 from root only (this service, not the car's own responder). Only
-   accepts, never a drop. Every rule carries the comment `aurelm-myairplay`; the rules are put back
+   accepts, never a drop. Every rule carries the comment `hp-airplay`; the rules are put back
    when a ruleset load drops them, and removed when the test ends.
 2. **mDNS.** A responder on udp 5353 announces `BMW iDrive test` as `_airplay._tcp` and `_raop._tcp`
    (the TXT records open-source receivers such as UxPlay use), answers queries for it, notes every
@@ -61,7 +61,7 @@ receiver it does not take for an Apple TV).
 ## The picture (stage 2)
 
 `uxplay-mgu` decodes the mirrored H.264 on the GPU (`native/uxplay-mgu/video`, Moonride's MSDK decoder) into
-`/dev/shm/mgu-video-aurelm-myairplay` (1920x720, I420, owned by nobody; the receiver runs in the group `video` for the
+`/dev/shm/mgu-video-hp-airplay` (1920x720, I420, owned by nobody; the receiver runs in the group `video` for the
 render node). The app shows it over the whole screen through mgu-render (`mirror_view.js`) while the car is parked
 (strict: no speed reading counts as moving); a tap or the iDrive controller hides it, and the touch screen and the
 controller are the HMI's again (claims and grab only while shown). The app ends the iPhone's session when it leaves the
@@ -100,7 +100,7 @@ YouTube in error; the iPhone's own Stop ends it, and stops the player). Pause, r
 
 **Internet.** The receiver runs as nobody, which mgu-uplink does not route. The video's segments come through
 `proxy.js`, a child of the service running as uid **13102** (`component.json` `"internet": true`, `"uids": [13102]`;
-the deploy tool writes `/var/opt/mgu-uplink/uids.d/aurelm-myairplay`): on 127.0.0.1:7390 only, `CONNECT` to ports
+the deploy tool writes `/var/opt/mgu-uplink/uids.d/hp-airplay`): on 127.0.0.1:7390 only, `CONNECT` to ports
 443 and 80 and plain http requests, names resolved through the uplink's DNS (`/run/mgu-uplink/lease.json`). TLS goes
 through the tunnel end to end: the player checks each server's certificate and name against `cacert.pem` (Mozilla's
 list, from certifi `b71b898`; the unit has no public one). The proxy runs only while a receiver with the video button
@@ -128,13 +128,13 @@ during CarPlay depended on the model and version (stage 1); should these bits ch
 | What | Gone by |
 |---|---|
 | firewall rules | the end of the test; the service's `ExecStopPost` (`cleanup.js`, after a stop, a crash, a kill or the OOM killer); the tool's `deactivate` (`cleanup.js` again, the first step of an uninstall); a reboot (the unit loads its ruleset afresh) |
-| `/var/opt/aurelm-myairplay/` (versions, `state/`: the receiver's identity, the last report) | the deploy tool's uninstall (removes the tool's whole folder) |
-| `aurelm-myairplay.socket`, `.service`, the `sockets.target` link, the deploy tool's limits drop-in, the recmgr names | the deploy tool's uninstall |
-| `/run/aurelm-myairplay.sock` | the socket's stop (`RemoveOnStop=yes`) |
-| `/dev/shm/mgu-video-aurelm-myairplay` | the receiver's exit; the service after a crash; `cleanup.js` (stop, uninstall); a reboot |
+| `/var/opt/hp-airplay/` (versions, `state/`: the receiver's identity, the last report) | the deploy tool's uninstall (removes the tool's whole folder) |
+| `hp-airplay.socket`, `.service`, the `sockets.target` link, the deploy tool's limits drop-in, the recmgr names | the deploy tool's uninstall |
+| `/run/hp-airplay.sock` | the socket's stop (`RemoveOnStop=yes`) |
+| `/dev/shm/mgu-video-hp-airplay` | the receiver's exit; the service after a crash; `cleanup.js` (stop, uninstall); a reboot |
 | the announcement on the network | a goodbye (TTL 0) when the test ends |
 | the proxy (stage 4) | the end of the receiver test; it exits with the service (its IPC channel closes) |
-| `/var/opt/mgu-uplink/uids.d/aurelm-myairplay` (uid 13102's internet) | the deploy tool's uninstall |
+| `/var/opt/mgu-uplink/uids.d/hp-airplay` (uid 13102's internet) | the deploy tool's uninstall |
 
 Nothing is written under `/` (the read-only root file system), no stock file or unit is touched, no
 drop-in goes on a unit of the car's.
@@ -146,16 +146,16 @@ What the Store's tools learned the hard way (mgu-store, waze-on-cluster), and ho
 - **No core dump to the crash handler** (it restarts the head unit for a program it does not list):
   `LimitCORE=1` on the service, no root `+` commands (systemd gives them no limits), and every `nft`
   runs as `sh -c 'ulimit -c 1; exec nft ...'`, so also from the deploy tool's `deactivate` hook.
-- **recmgr** lists `aurelm-myairplay` (the deploy tool writes it): a crash or exit restarts the
+- **recmgr** lists `hp-airplay` (the deploy tool writes it): a crash or exit restarts the
   service, never the head unit. A start limit (10 in 10 minutes) leaves it failed instead of looping.
 - **Node 8.9.4** (the 2019 head units' `/usr/bin/node`): plain Node 8 JavaScript; the tests run on
   8.9.4 too.
-- **No umask trap:** the service writes only its own files under `/var/opt/aurelm-myairplay`, read
+- **No umask trap:** the service writes only its own files under `/var/opt/hp-airplay`, read
   by root; the app reaches it through the socket, whose mode and owner are set explicitly.
 - **The socket is the app's alone:** every OAP app is in `tm_oap_app`, so a socket in that group would
   let any installed app start the test and open the ports (Vizualyse/idrive-apps,
   `knowledge/head-unit.md`). `sockgroup.js` (the socket's `ExecStartPost`, and the service at each
-  start) gives it the myAirPlay app's own group, found by its package name under
+  start) gives it the AirPlay HP app's own group, found by its package name under
   `/var/opt/public/oap`, mode 0660; root only (0600) while the app is not installed. The group is read
   when the socket starts: after a fresh install, restart the head unit once.
 - **No boot ordering:** nothing waits for it, it waits for nothing of the car's; it does not run at boot.
@@ -181,7 +181,7 @@ What the Store's tools learned the hard way (mgu-store, waze-on-cluster), and ho
 Control: one JSON object per line on the socket, `{"cmd":"status"}`, `{"cmd":"start","minutes":15}` (`"mode":"receiver"`,
 `"hls":true` for the receiver with the video button),
 `{"cmd":"stop"}`, `{"cmd":"exit"}`; the reply is the status. The last test's status is kept in
-`/var/opt/aurelm-myairplay/state/last-report.json` (every 30 s while it runs, and at its end).
+`/var/opt/hp-airplay/state/last-report.json` (every 30 s while it runs, and at its end).
 
-Tests: `node tests/myairplay_service.test.js` (also on Node 8.9.4). Package: `python3 tools/pack_tools.py`
-(`packages/aurelm-myairplay@<version>.tgz`, the deploy tool's artifact format).
+Tests: `node tests/airplay_service.test.js` (also on Node 8.9.4). Package: `python3 tools/pack_tools.py`
+(`packages/hp-airplay@<version>.tgz`, the deploy tool's artifact format).

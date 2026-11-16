@@ -1,6 +1,6 @@
 'use strict';
 /**
- * myAirPlay - the head unit as an AirPlay receiver ("BMW iDrive") for an iPhone.
+ * AirPlay HP - the head unit as an AirPlay receiver ("BMW iDrive") for an iPhone.
  *
  *   Screen mirroring  Control Center > Screen Mirroring > BMW iDrive: the iPhone's screen on the centre screen and
  *                     its sound on the car's speakers, with wireless CarPlay connected (UxPlay's protocol presented
@@ -11,8 +11,8 @@
  * The picture shows while the car is parked (setting "Picture only while parked", on), over the whole screen
  * (mirror_view.js); the iDrive controller's buttons hide a mirrored screen, "Start AirPlay" shows it again.
  *
- * The receiver runs in the service (native/aurelm-myairplay, a root tool) from "Start AirPlay" for an hour, longer
- * while an iPhone uses it; the app talks to it over /run/aurelm-myairplay.sock (a JSON object per line).
+ * The receiver runs in the service (native/hp-airplay, a root tool) from "Start AirPlay" for an hour, longer
+ * while an iPhone uses it; the app talks to it over /run/hp-airplay.sock (a JSON object per line).
  */
 const net = require('net');
 const mgu = require('./kit/mgu');
@@ -27,13 +27,13 @@ const { createControls, videoRect } = require('./controls');
 const { createCarAudio } = require('./car_audio');
 
 const W = 1600, H = 520;
-const SOCK = process.env.MYAIRPLAY_SOCK || '/run/aurelm-myairplay.sock';
+const SOCK = process.env.MYAIRPLAY_SOCK || '/run/hp-airplay.sock';
 // the receiver's time from "Start AirPlay"; while an iPhone uses it, it is lengthened before it ends
 const MINUTES = 60;
 const EXTEND_BELOW_MS = 10 * 60000;
 // the service version this app is built with: an older one still running (its files were updated, the
 // process not) is asked to end, and the socket starts the new one at the next request
-const SERVICE_VERSION = '1.0.0';
+const SERVICE_VERSION = '1.1.0';
 const older = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 const GREEN = '#2fd27a', AMBER = '#ffb020', RED = '#ef2b2d';
 
@@ -73,7 +73,7 @@ const NET_NAMES = { 'car-wifi': 'the car Wi-Fi', 'iphone-hotspot': "the iPhone's
  */
 function view(s, pic, ca, opts) {
     const o = opts || {};
-    if (!s) return { head: { text: 'The myAirPlay service does not answer. It comes with this app from the Store: restart the head unit once after installing.', tone: 'bad' }, rows: [] };
+    if (!s) return { head: { text: 'The AirPlay HP service does not answer. It comes with this app from the Store: restart the head unit once after installing.', tone: 'bad' }, rows: [] };
     const on = s.mode === 'receiver' && s.active;
     const r = on ? (s.rx || {}) : {};
     const st = r.stream || {}, h = r.hls, c = r.client;
@@ -292,7 +292,7 @@ mgu.run({
             const on = st && st.active && st.mode === 'receiver';
             const left = on ? Math.max(0, Math.round((st.endsAt - st.now) / 60000)) : null;
             const inUse = on && st.rx && (st.rx.client || st.rx.hls);
-            G.frame(cv, t, ['myAirPlay'], 0, [busy && { text: busy, color: 'accent' }, on && !inUse && left <= 10 && { text: 'OFF IN ' + left + ' MIN' }]);
+            G.frame(cv, t, ['AirPlay HP'], 0, [busy && { text: busy, color: 'accent' }, on && !inUse && left <= 10 && { text: 'OFF IN ' + left + ' MIN' }]);
             draw(cv, t);
             return ui.image('MAIN_GFX', cv);
         }
@@ -337,7 +337,7 @@ mgu.run({
         ui.onVisible(() => syncMirror());
         await poll();
         ctx.loop('MAIN', 2, render);
-        render().then(() => log.info('myAirPlay first frame done')).catch((e) => log.warn('first render: ' + e));
+        render().then(() => log.info('AirPlay HP first frame done')).catch((e) => log.warn('first render: ' + e));
     },
 });
 

@@ -17,7 +17,7 @@ CFLAGS  = -O2 -g0 -fPIC -Wall -Wno-unused-function -std=gnu99 $(DEFS) $(INC)
 CXXFLAGS= -O2 -g0 -Wall -std=gnu++11 $(DEFS) $(INC)
 
 C_SRCS  = $(wildcard $(SRC)/lib/*.c) $(wildcard $(SRC)/lib/playfair/*.c) $(wildcard $(SRC)/lib/llhttp/*.c) \
-          $(wildcard $(SRC)/lib/mdnsd/*.c) renderer/mgu_renderer.c
+          $(wildcard $(SRC)/lib/mdnsd/*.c) renderer/mgu_renderer.c renderer/mgu_jitter.c
 C_OBJS  = $(patsubst %.c,$(OUT)/obj/%.o,$(notdir $(C_SRCS)))
 
 # stage 2: the GPU decoder (video/: Moonride's copy of waze-on-cluster's MSDK decoder, its frame file writer), linked
@@ -47,7 +47,7 @@ $(OUT)/obj/%.o: %.c
 	@mkdir -p $(OUT)/obj
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OUT)/obj/mgu_renderer.o: renderer/mgu_renderer.c video/src/mgu_video.h audio/mgu_audio.h player/mgu_hls.h
+$(OUT)/obj/mgu_renderer.o: renderer/mgu_renderer.c video/src/mgu_video.h audio/mgu_audio.h player/mgu_hls.h renderer/mgu_jitter.h
 	@mkdir -p $(OUT)/obj
 	$(CC) $(CFLAGS) -I$(SRC)/renderers -Ivideo/src -Iaudio -Iplayer -c $< -o $@
 

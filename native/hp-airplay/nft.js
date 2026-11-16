@@ -18,7 +18,7 @@
  */
 const { execFileSync } = require('child_process');
 
-const COMMENT = 'aurelm-myairplay';
+const COMMENT = 'hp-airplay';
 
 /**
  * nft through `sh -c 'ulimit -c 1; exec nft ...'`: a crash of nft pipes no core dump to the unit's crash

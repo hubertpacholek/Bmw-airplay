@@ -1,7 +1,7 @@
 'use strict';
 // The deploy tool's check after an install: the service answers on its control socket (exit 0).
 const net = require('net');
-const sockPath = process.argv[2] || '/run/aurelm-myairplay.sock';
+const sockPath = process.argv[2] || '/run/hp-airplay.sock';
 let tries = 0;
 function attempt() {
     const c = net.connect(sockPath);
@@ -15,14 +15,14 @@ function attempt() {
         c.destroy();
         try {
             const s = JSON.parse(buf.slice(0, buf.indexOf('\n')));
-            console.log('aurelm-myairplay ' + s.version + ' answers: ' + s.verdict.code);
+            console.log('hp-airplay ' + s.version + ' answers: ' + s.verdict.code);
             process.exit(0);
         } catch (e) { retry('bad answer'); }
     });
     c.on('error', (e) => { clearTimeout(t); retry(e.code || e.message); });
 }
 function retry(why) {
-    if (++tries >= 10) { console.error('aurelm-myairplay: ' + why); process.exit(1); }
+    if (++tries >= 10) { console.error('hp-airplay: ' + why); process.exit(1); }
     setTimeout(attempt, 1000);
 }
 attempt();

@@ -5,10 +5,10 @@
 // nothing to remove (no rules, no nft) there is nothing to do.
 try {
     // the receiver's frame file (it removes it itself at a clean exit)
-    try { require('fs').unlinkSync('/dev/shm/mgu-video-aurelm-myairplay'); } catch (e) { /* none */ }
+    try { require('fs').unlinkSync('/dev/shm/mgu-video-hp-airplay'); } catch (e) { /* none */ }
     const n = require('./nft').remove();
-    if (n) console.log('aurelm-myairplay: removed ' + n + ' firewall rules');
+    if (n) console.log('hp-airplay: removed ' + n + ' firewall rules');
 } catch (e) {
-    console.log('aurelm-myairplay cleanup: ' + (e && e.message));
+    console.log('hp-airplay cleanup: ' + (e && e.message));
 }
 process.exit(0);

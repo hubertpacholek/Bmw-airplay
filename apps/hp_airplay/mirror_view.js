@@ -2,7 +2,7 @@
 /**
  * mirror_view.js - stage 2: the iPhone's mirrored screen over the whole centre screen.
  *
- * The receiver's GPU decoder writes the pictures to a frame file (/dev/shm/mgu-video-aurelm-myairplay, owned by
+ * The receiver's GPU decoder writes the pictures to a frame file (/dev/shm/mgu-video-hp-airplay, owned by
  * nobody); this view names it to mgu-render on a connection of its own (mgu_render_client.js, from Moonride: the
  * native dialect, a layer over the whole screen, as Moonride's game screen) and draws it: black, then the newest
  * picture fitted in (aspect kept). The kit's page (the status) stays underneath.

@@ -17,7 +17,7 @@ const cp = require('child_process');
 
 const BASE_PORT = 7300;
 // stage 2: the frame file the receiver's GPU decoder writes and the app shows (mgu-render takes it: owned by nobody)
-const VIDEO_PATH = '/dev/shm/mgu-video-aurelm-myairplay';
+const VIDEO_PATH = '/dev/shm/mgu-video-hp-airplay';
 const VIDEO_SIZE = '1920x720';
 // stage 3: SmartXbar's input for CarLife (unused in Europe), which Moonride plays into; plug converts 44.1 to 48 kHz
 const AUDIO_DEVICE = 'plug:smartx:CarLifeMedia_CF_48_STEREO';

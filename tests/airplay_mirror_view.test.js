@@ -1,12 +1,12 @@
 'use strict';
 /**
- * The picture over the screen (apps/aurelm_myairplay/mirror_view.js): node tests/airplay_mirror_view.test.js
+ * The picture over the screen (apps/hp_airplay/mirror_view.js): node tests/airplay_mirror_view.test.js
  * Against a fake mgu-render client: when it is shown and hidden, the frame file named, the keepalive frames.
  */
 const assert = require('assert');
 const path = require('path');
 const EventEmitter = require('events');
-const { createMirrorView, VID } = require(path.join(__dirname, '..', 'apps', 'aurelm_myairplay', 'mirror_view'));
+const { createMirrorView, VID } = require(path.join(__dirname, '..', 'apps', 'hp_airplay', 'mirror_view'));
 const record = require(path.join(__dirname, '..', 'kit', 'runtime', 'record'));
 
 class FakeGpu extends EventEmitter {
@@ -26,13 +26,13 @@ let clock = 1000;
 function setup(inoOf) {
     let gpu = null;
     class RC extends FakeGpu { constructor() { super(); gpu = this; } }
-    const v = createMirrorView({ RenderClient: RC, Recorder: record.Recorder, kit: record, appId: 'aurelm_myairplay',
+    const v = createMirrorView({ RenderClient: RC, Recorder: record.Recorder, kit: record, appId: 'hp_airplay',
         statIno: inoOf || (() => 42), now: () => clock });
     gpu.emit('ready', { w: 1920, h: 720 }, { video: true });
     gpu.calls = [];
     return { v, gpu };
 }
-const rx = (o) => Object.assign({ running: true, videoRunning: true, decoder: { ok: true, path: '/dev/shm/mgu-video-aurelm-myairplay', w: 1920, h: 720 },
+const rx = (o) => Object.assign({ running: true, videoRunning: true, decoder: { ok: true, path: '/dev/shm/mgu-video-hp-airplay', w: 1920, h: 720 },
     stream: { shown: 10 } }, o || {});
 
 const tests = [];
@@ -41,7 +41,7 @@ const test = (n, f) => tests.push({ n, f });
 test('shown while parked, the page up and pictures coming: the file named, grabbed, a frame with the video op', () => {
     const { v, gpu } = setup();
     v.update({ rx: rx(), pageVisible: true, driving: false });
-    assert.deepStrictEqual(gpu.calls, ['video 1 /dev/shm/mgu-video-aurelm-myairplay', 'claim 1', 'grab true', 'show true', 'frame']);
+    assert.deepStrictEqual(gpu.calls, ['video 1 /dev/shm/mgu-video-hp-airplay', 'claim 1', 'grab true', 'show true', 'frame']);
     assert.strictEqual(v.state().shown, true);
     assert.strictEqual(v.state().why, 'on the screen');
     const w = gpu.lastRec.words();
@@ -100,7 +100,7 @@ test('nothing without pictures, a failed decoder, or a missing frame file; a new
     assert.strictEqual(v.state().shown, true);
     gpu.calls = []; ino = 43;
     v.update({ rx: rx(), pageVisible: true, driving: false });
-    assert.deepStrictEqual(gpu.calls.slice(0, 2), ['video 1 null', 'video 1 /dev/shm/mgu-video-aurelm-myairplay']);
+    assert.deepStrictEqual(gpu.calls.slice(0, 2), ['video 1 null', 'video 1 /dev/shm/mgu-video-hp-airplay']);
     ino = null;
     v.update({ rx: rx(), pageVisible: true, driving: false });
     assert.strictEqual(v.state().shown, false);

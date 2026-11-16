@@ -1,12 +1,12 @@
 'use strict';
 /**
- * The film's controls over the picture (apps/aurelm_myairplay/controls.js): node tests/emby_controls.test.js
+ * The film's controls over the picture (apps/hp_airplay/controls.js): node tests/emby_controls.test.js
  * Touch and the iDrive controller (the kit's codes), the buttons, a seek on the progress bar, hiding after 5 s (not
  * while paused), the aspect's rectangles; drawn with the kit's Recorder.
  */
 const assert = require('assert');
 const path = require('path');
-const { createControls, videoRect } = require(path.join(__dirname, '..', 'apps', 'aurelm_myairplay', 'controls'));
+const { createControls, videoRect } = require(path.join(__dirname, '..', 'apps', 'hp_airplay', 'controls'));
 const record = require(path.join(__dirname, '..', 'kit', 'runtime', 'record'));
 
 const PL = { w: 1920, h: 720 };

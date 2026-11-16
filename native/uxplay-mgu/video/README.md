@@ -11,9 +11,9 @@ H.264 from the iPhone's screen mirroring, decoded on the head unit's GPU and wri
 | `tools/ramses_abi.py`, `tools/woc_abi.py` | Robert Nisipeanu's stub generator and import check (GPL-3.0-or-later), from Moonride |
 | `src/mgu_video.cpp`, `.h` | ours: UxPlay's renderer -> the decoder -> the frame file |
 
-`mgu_video.cpp` opens, with the first access unit, `/dev/shm/mgu-video-aurelm-myairplay` (1920x720, 3 slots, I420; owned by
+`mgu_video.cpp` opens, with the first access unit, `/dev/shm/mgu-video-hp-airplay` (1920x720, 3 slots, I420; owned by
 nobody, the receiver's user) and the decoder on `/dev/dri/renderD128` (the receiver runs in the group `video`); VPP fits
 any picture (portrait, landscape, a rotation mid-stream) into 1920x720 with black bars. The app names the file to
-mgu-render and draws it over the screen while the car is parked (`apps/aurelm_myairplay/mirror_view.js`).
+mgu-render and draws it over the screen while the car is parked (`apps/hp_airplay/mirror_view.js`).
 
 The decoder's VA-API path ran on the car in Moonride; this receiver's use of it is checked in the car.

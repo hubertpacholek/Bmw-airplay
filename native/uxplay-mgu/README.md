@@ -1,7 +1,7 @@
 # uxplay-mgu
 
 UxPlay's AirPlay mirroring protocol for the iDrive 7 head unit (MGU), run by the service
-`aurelm-myairplay` in its receiver test. The renderer (`renderer/mgu_renderer.c`) replaces UxPlay's GStreamer renderers: it reports what the iPhone sends
+`hp-airplay` in its receiver test. The renderer (`renderer/mgu_renderer.c`) replaces UxPlay's GStreamer renderers: it reports what the iPhone sends
 (client, codec and size, frames, frame rate, bit rate, keyframes, sound packets, pictures decoded) on stdout as
 `MGU {json}` lines and, **stage 2**, hands every access unit to the GPU decoder (`video/`, see its README), which writes
 the pictures to mgu-render's frame file. **Stage 3**: every audio packet goes to `audio/mgu_audio.cpp`: AAC-ELD (mirroring), ALAC or AAC-LC decoded with
@@ -10,6 +10,14 @@ as `FFMPEG-LICENSE`), at the iPhone's volume, into ALSA `plug:smartx:CarLifeMedi
 run time, the device non-blocking, late packets dropped: Moonride's way). Started as root by the service, the binary
 drops to nobody with the groups video and mgu_alsa itself (`MGU_RUN_AS`, `MGU_GROUPS`) before anything runs, and refuses
 to run if it cannot.
+
+**The jitter buffer** (`renderer/mgu_jitter.c`): Wi-Fi delivers the mirrored access units and sound packets
+unevenly, a few at once and then a gap, and shown the moment they arrive a film stutters. Each goes to its queue and is
+handed on at the time the iPhone stamped it, `MGU_JITTER_MS` (default 200, 0..1000; 0 hands each on as it arrives) after
+the fastest of the last 2 to 4 s arrived: an access unit is decoded and its picture held until then, a sound packet
+played then. Video and sound have a queue each, so each keeps the timing it had without the buffer, shifted by the same
+delay. `jitter <ms>` on stdin changes the delay; the stats carry `jms`, `vq` / `aq` (waiting) and `vlate` / `aqlate`
+(handed on more than 40 ms after they were due).
 
 **Stage 4**: a video sent with AirPlay's video button (`-hls`; YouTube's HLS through UxPlay's local playlists, or a
 direct http(s) address) is played by `player/mgu_hls.cpp` in place of GStreamer's playbin: libavformat reads it (hls,
@@ -26,13 +34,14 @@ and the hls demuxer opens each segment without our options).
 | `UXPLAY_REV` | the UxPlay commit built ([FDH2/UxPlay](https://github.com/FDH2/UxPlay), UxPlay 1.74) |
 | `patch.py` | the changes to it: model `AppleTV5,4` and version `366.0` (iOS 27 sends the mirrored picture during CarPlay only to a receiver that presents itself so; found 2026-11-08), and the mDNS address from `UXPLAY_MDNS_IPV4` with `UXPLAY_MDNS_NO_IPV6` (the head unit has several interfaces) |
 | `renderer/mgu_renderer.c` | the renderer API without GStreamer |
+| `renderer/mgu_jitter.c`, `renderer/test_jitter.c` | the jitter buffer for screen mirroring, and its test off the car (`cc -O2 -pthread renderer/test_jitter.c renderer/mgu_jitter.c -lm && ./a.out`) |
 | `player/mgu_hls.cpp`, `player/test_hls.cpp` | stage 4: the player, and a program that plays an address off the car (`make ... build/out/test_hls`; `MGU_VIDEO_OFF=1`, `MGU_AUDIO=wav:<file>`) |
 | `ffmpeg-tls.py` | FFmpeg's TLS checks certificates and names by default (`MGU_CA_FILE`) |
 | `Makefile`, `build.sh` | the build: ubuntu:18.04 (glibc 2.27, as the unit) in Docker; libplist 2.6.0 from its release, OpenSSL 1.1.1, GLib and PCRE linked statically. The binary needs only glibc (2.27 at most) and asks for the unit's loader, `/lib/ld-linux-x86-64.so.2` (the unit has no `/lib64`: 0.6.0 asked for `/lib64/...` and did not start, ENOENT); `build.sh` checks it and starts it in ubuntu:18.04 with the loader there |
 
 ```sh
 sh native/uxplay-mgu/build.sh    # -> native/uxplay-mgu/build/uxplay-mgu (needs git, python3, Docker)
-python3 tools/pack_tools.py      # packs it into the aurelm-myairplay tool
+python3 tools/pack_tools.py      # packs it into the hp-airplay tool
 ```
 
 The service runs it as `uxplay-mgu -n "BMW iDrive" -nh -p 7300 -m <deviceid>`, as nobody, with

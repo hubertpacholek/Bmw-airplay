@@ -1,6 +1,6 @@
 'use strict';
 /**
- * aurelm-myairplay - can an iPhone find and reach an AirPlay receiver on this head unit?
+ * hp-airplay - can an iPhone find and reach an AirPlay receiver on this head unit?
  *
  * A network test, not a receiver. While a test runs (started from the app, at most `minutes`):
  *
@@ -17,8 +17,8 @@
  * The verdict: an iPhone that connected to that port found the receiver and reached it, which is
  * everything a real receiver needs from the network.
  *
- * Runs as root (systemd, aurelm-myairplay.service), started by the app's connection to
- * /run/aurelm-myairplay.sock (socket activation; nothing runs at boot), and exits by itself 10
+ * Runs as root (systemd, hp-airplay.service), started by the app's connection to
+ * /run/hp-airplay.sock (socket activation; nothing runs at boot), and exits by itself 10
  * minutes after the last test and request. The unit's own Node (/usr/bin/node: 8.9.4 on 2019 head units):
  * plain JavaScript, no modules. One JSON object per line: {"cmd":"status"|"start"|"stop", "minutes": n};
  * the reply is the status.
@@ -35,7 +35,7 @@ const rxm = require('./receiver');
 const sockgroup = require('./sockgroup');
 const { fork } = require('child_process');
 
-const VERSION = '1.0.1';
+const VERSION = '1.1.0';
 const MDNS_GROUP = '224.0.0.251';
 const QUERY_NAMES = ['_airplay._tcp.local', '_raop._tcp.local', '_companion-link._tcp.local', '_apple-mobdev2._tcp.local'];
 
@@ -624,8 +624,8 @@ const IDLE_EXIT_MS = 10 * 60000;   // no test and no request this long: exit (th
 const REPORT_MS = 30000;           // the running test's report on disk this often (and at its end)
 
 function main() {
-    const stateDir = process.env.PROBE_STATE || '/var/opt/aurelm-myairplay/state';
-    const sockPath = process.env.PROBE_SOCK || '/run/aurelm-myairplay.sock';
+    const stateDir = process.env.PROBE_STATE || '/var/opt/hp-airplay/state';
+    const sockPath = process.env.PROBE_SOCK || '/run/hp-airplay.sock';
     const log = (s) => console.log(s);
     let lastReport = 0, lastRequest = Date.now();
     const report = (force) => {
@@ -643,7 +643,7 @@ function main() {
     probe.cleanupSync();
     let exiting = false;
     serveControl(probe, sockPath, log, () => { lastRequest = Date.now(); }, () => { if (!exiting) { exiting = true; setTimeout(() => bye('asked by the app (a newer version is installed)', 0), 200); } });
-    log('aurelm-myairplay ' + VERSION + ' on node ' + process.version + ', receiver ' + probe.identity.deviceid);
+    log('hp-airplay ' + VERSION + ' on node ' + process.version + ', receiver ' + probe.identity.deviceid);
     const bye = (why, code) => {
         log('exit: ' + why);
         const t = setTimeout(() => { probe.cleanupSync(); process.exit(code); }, 4000);

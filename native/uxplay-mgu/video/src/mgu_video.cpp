@@ -5,10 +5,10 @@
  * before each IDR) to mgu_video_frame(). The first one opens the frame file (MGVF, 3 slots, I420) and the
  * Intel Media SDK decoder (decoder_msdk.cpp, from waze-on-cluster through Moonride: VA-API on
  * /dev/dri/renderD128, VPP fits the picture into the output size, black bars around); each decoded picture is
- * converted NV12 -> I420 into the next slot. The app (apps/aurelm_myairplay) names the file to mgu-render
+ * converted NV12 -> I420 into the next slot. The app (apps/hp_airplay) names the file to mgu-render
  * and draws it over the screen while the car is parked.
  *
- * MGU_VIDEO_PATH  the frame file (default /dev/shm/mgu-video-aurelm-myairplay; mgu-render takes it when nobody owns it)
+ * MGU_VIDEO_PATH  the frame file (default /dev/shm/mgu-video-hp-airplay; mgu-render takes it when nobody owns it)
  * MGU_VIDEO_SIZE  WxH, the output (default 1920x720, the centre screen)
  * MGU_VIDEO_OFF   set: stage 1 behaviour, nothing decoded (a PC without the unit's GPU)
  *
@@ -41,7 +41,7 @@ bool g_open = false, g_failed = false, g_reported = false, g_file = false;
 bool g_native = false;
 unsigned long long g_shown = 0, g_errors = 0;
 uint32_t g_w = 1920, g_h = 720;
-std::string g_path = "/dev/shm/mgu-video-aurelm-myairplay", g_err;
+std::string g_path = "/dev/shm/mgu-video-hp-airplay", g_err;
 
 /* opens the frame file and the decoder; false (once, with g_err) when it cannot */
 bool open_locked() {
