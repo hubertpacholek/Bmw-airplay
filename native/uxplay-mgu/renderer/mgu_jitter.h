@@ -22,13 +22,16 @@ typedef struct mgu_jitter_stats_s {
 
 mgu_jitter_t *mgu_jitter_new(mgu_jitter_fn fn, bool wait_first);
 /* a copy of the packet, due at its ntp_time (UxPlay's local clock, CLOCK_REALTIME ns) + the delay, taken from
- * the shortest transit seen in the last 2 to 4 s; with no delay, fn runs here at once */
+ * the shortest transit seen in the last 2 to 4 s (the anchor's, once it has one); with no delay, fn runs here at once */
 void mgu_jitter_push(mgu_jitter_t *q, const unsigned char *data, int len, uint64_t ntp_time);
 /* drops what waits and returns once nothing is being handed on (a packet already in fn has returned) */
 void mgu_jitter_flush(mgu_jitter_t *q);
 /* waits until due_ns; 0 when due, 1 when the queue was flushed meanwhile (the packet is to be dropped) */
 int mgu_jitter_wait(mgu_jitter_t *q, int64_t due_ns, unsigned gen);
 void mgu_jitter_late(mgu_jitter_t *q);
+/* q's packets go on the anchor's timeline: their due time from the anchor's shortest transit while it has one */
+void mgu_jitter_anchor(mgu_jitter_t *q, mgu_jitter_t *anchor);
+unsigned mgu_jitter_queued(mgu_jitter_t *q);
 void mgu_jitter_stats(mgu_jitter_t *q, mgu_jitter_stats_t *s);
 
 /* the delay of every queue, 0..1000 ms (0: each packet handed on as it arrives) */

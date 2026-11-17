@@ -442,9 +442,9 @@ void demux_loop(Player *p) {
                 mgu_audio_stats(&a);
                 const double dt = t - last_stats;
                 emitf("{\"ev\":\"stats\",\"frames\":%llu,\"fps\":%.1f,\"kbps\":%.0f,\"idr\":%llu,\"sps\":%llu,\"audio\":%llu,\"shown\":%llu,\"decerr\":%llu,"
-                      "\"adec\":%llu,\"alate\":%llu,\"afull\":%llu,\"aerr\":%llu,\"axrun\":%llu,\"adev\":%.0f}",
+                      "\"adec\":%llu,\"afull\":%llu,\"aerr\":%llu,\"axrun\":%llu,\"adev\":%.0f,\"aadj\":%llu}",
                       p->vpk.load(), (p->vpk - last_vpk) / dt, (p->bytes - last_bytes) * 8.0 / 1000.0 / dt, p->idr.load(), p->sps.load(),
-                      p->apk.load(), p->shown.load(), p->decerr.load(), a.decoded, a.dropped_late, a.dropped_full, a.errors, a.xruns, a.device_ms);
+                      p->apk.load(), p->shown.load(), p->decerr.load(), a.decoded, a.dropped_full, a.errors, a.xruns, a.device_ms, a.adjusted);
                 last_stats = t; last_bytes = p->bytes; last_vpk = p->vpk;
             }
             tick_pos(p, lastpos);

@@ -8,8 +8,12 @@
  * now - ntp_time (UxPlay's local clock) and base the shortest transit of the last 2 to 4 s. A packet that came
  * through fastest waits the whole delay, a slow one less; one slower than base + delay goes at once. Base follows
  * the two clocks' drift and the network by itself; a jump of 2 s or more (the car setting its clock, a dead spot)
- * starts it again. Video and sound each have their own queue, so each keeps the timing it had without the buffer,
- * shifted by the same delay.
+ * starts it again.
+ *
+ * Sound goes on the picture's timeline (mgu_jitter_anchor): its due time is its timestamp + the picture's base +
+ * the delay. The iPhone stamps a sound packet with the time it is to be heard, about 0.2 s after it sends it, so the
+ * sound waits that much longer than the picture: it stays in step with it, and a packet the iPhone has to send again
+ * (sound comes over UDP) has that much more time to arrive. Before the first picture, sound keeps its own base.
  */
 #include <errno.h>
 #include <pthread.h>
@@ -24,6 +28,7 @@
 #define BUCKET_NS (2000 * MS)
 #define LATE_NS (40 * MS)
 #define MAX_QUEUED 1000          /* more than this: handed on without waiting until it drains */
+#define MAX_WAIT_NS (1000 * MS)  /* beyond the delay: sound on the picture's timeline waits about 0.2 s more */
 
 typedef struct item {
     struct item *next;
@@ -40,6 +45,7 @@ struct mgu_jitter {
     bool busy;
     mgu_jitter_fn fn;
     bool wait_first;
+    mgu_jitter_t *anchor;
     bool have;
     int64_t cur, prev, bucket_start;
     unsigned long long late;
@@ -64,6 +70,16 @@ int mgu_jitter_delay(void) { return g_delay_ms; }
 
 static int64_t base_locked(const mgu_jitter_t *q) { return q->cur < q->prev ? q->cur : q->prev; }
 
+/* the anchor's base, when it has one (the anchor's lock is never held while taking another's) */
+static bool anchor_base(mgu_jitter_t *a, int64_t *base) {
+    if (!a) return false;
+    pthread_mutex_lock(&a->mu);
+    const bool have = a->have;
+    if (have) *base = base_locked(a);
+    pthread_mutex_unlock(&a->mu);
+    return have;
+}
+
 /* the transit of a packet arriving now -> its due time */
 static int64_t due_locked(mgu_jitter_t *q, uint64_t ntp_time, int64_t now, int64_t delay) {
     const int64_t transit = realtime_ns() - (int64_t) ntp_time;
@@ -78,9 +94,11 @@ static int64_t due_locked(mgu_jitter_t *q, uint64_t ntp_time, int64_t now, int64
     } else if (transit < q->cur) {
         q->cur = transit;
     }
-    int64_t wait = base_locked(q) + delay - transit;
+    int64_t base = base_locked(q);
+    anchor_base(q->anchor, &base);
+    int64_t wait = base + delay - transit;
     if (wait < 0) wait = 0;
-    if (wait > delay + 100 * MS) wait = delay + 100 * MS;
+    if (wait > delay + MAX_WAIT_NS) wait = delay + MAX_WAIT_NS;
     return now + wait;
 }
 
@@ -182,6 +200,19 @@ int mgu_jitter_wait(mgu_jitter_t *q, int64_t due_ns, unsigned gen) {
     const int flushed = q->gen != gen;
     pthread_mutex_unlock(&q->mu);
     return flushed;
+}
+
+void mgu_jitter_anchor(mgu_jitter_t *q, mgu_jitter_t *anchor) {
+    pthread_mutex_lock(&q->mu);
+    q->anchor = anchor;
+    pthread_mutex_unlock(&q->mu);
+}
+
+unsigned mgu_jitter_queued(mgu_jitter_t *q) {
+    pthread_mutex_lock(&q->mu);
+    const unsigned n = q->count;
+    pthread_mutex_unlock(&q->mu);
+    return n;
 }
 
 void mgu_jitter_late(mgu_jitter_t *q) {

@@ -6,9 +6,12 @@
 extern "C" {
 #endif
 typedef struct mgu_audio_stats_s {
-    unsigned long long packets, decoded, dropped_late, dropped_full, errors, xruns;
-    double device_ms;   /* the device's delay last read, -1 unknown */
-    int open;           /* 1 the device is open, 0 not (yet), -1 failed */
+    unsigned long long packets, decoded;
+    unsigned long long dropped_full;   /* times sound was left out: more than 150 ms waiting for the device */
+    unsigned long long errors, xruns;  /* xruns: the device ran dry while it was playing */
+    double device_ms;                  /* the device's delay last read, -1 unknown */
+    int open;                          /* 1 the device is open, 0 not (yet), -1 failed */
+    unsigned long long adjusted;       /* samples left out or repeated to follow the car's sound clock */
 } mgu_audio_stats_t;
 /* ct: UxPlay's compression type (2 ALAC, 4 AAC-LC, 8 AAC-ELD); returns 0, or -1 with mgu_audio_error() */
 int mgu_audio_start(int ct);

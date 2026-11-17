@@ -22,9 +22,12 @@
  *
  * Screen mirroring goes through a jitter buffer (renderer/mgu_jitter.c): the access units and sound packets are handed
  * to the decoder and the sound at an even pace, by the iPhone's timestamps, MGU_JITTER_MS (default 200, 0..1000) after
- * the fastest of them arrive; 0 hands each on as it arrives. The command "jitter <ms>" on stdin changes it. Stats then
- * carry "jms" (the delay), "vq" / "aq" (access units / sound packets waiting) and "vlate" / "aqlate" (handed on more
- * than 40 ms late).
+ * the fastest pictures arrive, the sound on the pictures' timeline; 0 hands each on as it arrives. The command
+ * "jitter <ms>" on stdin changes it. A sound packet more than 60 ms late is dropped while newer ones wait (after a
+ * packet the iPhone sent again), so the sound stays on time. Stats then carry "jms" (the delay), "vq" / "aq" (access
+ * units / sound packets waiting), "vlate" / "aqlate" (handed on more than 40 ms late), "aqdrop" (late sound dropped),
+ * "aadj" (samples added or left out to follow the car's sound clock) and "agaps" (every gap in the sound: late sound
+ * dropped, the device run dry, sound that did not fit).
  *
  * Stage 4: a video the iPhone hands over (AirPlay's video button: YouTube's HLS, served by UxPlay on localhost, or
  * a direct address) is played by player/mgu_hls.cpp in place of GStreamer's playbin: UxPlay starts it with the
@@ -91,11 +94,13 @@ static mgu_jitter_t *vq, *aq;
 static void present_video(const unsigned char *data, int len, int64_t due_ns, mgu_jitter_t *q, unsigned gen);
 static void play_audio(const unsigned char *data, int len, int64_t due_ns, mgu_jitter_t *q, unsigned gen);
 static pthread_once_t queues_once = PTHREAD_ONCE_INIT;
+static volatile unsigned long long a_dropped;   /* late sound packets dropped (play_audio) */
 static void make_queues(void) {
     const char *e = getenv("MGU_JITTER_MS");
     if (e && *e) mgu_jitter_set_delay(atoi(e));
     vq = mgu_jitter_new(present_video, false);   /* waits itself, after decoding: the picture is ready when due */
     aq = mgu_jitter_new(play_audio, true);
+    mgu_jitter_anchor(aq, vq);
 }
 static void queues(void) { pthread_once(&queues_once, make_queues); }
 
@@ -139,12 +144,13 @@ static void stats_locked(double t) {
     mgu_jitter_stats(vq, &jv);
     mgu_jitter_stats(aq, &ja);
     emit("{\"ev\":\"stats\",\"frames\":%llu,\"fps\":%.1f,\"kbps\":%.0f,\"idr\":%llu,\"sps\":%llu,\"audio\":%llu,\"shown\":%llu,\"decerr\":%llu,"
-         "\"adec\":%llu,\"alate\":%llu,\"afull\":%llu,\"aerr\":%llu,\"axrun\":%llu,\"adev\":%.0f,"
-         "\"jms\":%d,\"vq\":%u,\"vlate\":%llu,\"aq\":%u,\"aqlate\":%llu}",
+         "\"adec\":%llu,\"afull\":%llu,\"aerr\":%llu,\"axrun\":%llu,\"adev\":%.0f,"
+         "\"jms\":%d,\"vq\":%u,\"vlate\":%llu,\"aq\":%u,\"aqlate\":%llu,\"aqdrop\":%llu,\"aadj\":%llu,\"agaps\":%llu}",
          (unsigned long long) st.frames, st.win_frames / dt, st.win_bytes * 8.0 / 1000.0 / dt,
          (unsigned long long) st.idr, (unsigned long long) st.sps, (unsigned long long) st.audio_packets, st.shown, st.decerr,
-         a.decoded, a.dropped_late, a.dropped_full, a.errors, a.xruns, a.device_ms,
-         jv.delay_ms, jv.queued, jv.late, ja.queued, ja.late);
+         a.decoded, a.dropped_full, a.errors, a.xruns, a.device_ms,
+         jv.delay_ms, jv.queued, jv.late, ja.queued, ja.late, a_dropped, a.adjusted,
+         a_dropped + a.xruns + a.dropped_full);
     st.win_frames = st.win_bytes = 0;
     st.win_start = t;
 }
@@ -338,9 +344,11 @@ void audio_renderer_init(logger_t *logger, const char *audiosink, const bool *au
     (void) logger; (void) audiosink; (void) audio_sync; (void) video_sync; (void) artp_pipeline;
     queues();
 }
-/* a sound packet off the queue, when due: decoded and played */
+/* a sound packet off the queue, when due: decoded and played; one more than 60 ms late is dropped while newer ones
+ * wait, so the packets after a gap catch up with their time instead of overfilling the device */
 static void play_audio(const unsigned char *data, int len, int64_t due_ns, mgu_jitter_t *q, unsigned gen) {
-    (void) due_ns; (void) q; (void) gen;
+    (void) gen;
+    if (mgu_jitter_now() > due_ns + 60000000LL && mgu_jitter_queued(q) > 0) { a_dropped++; return; }
     mgu_audio_packet(data, len);
 }
 static bool sound_on = false;   /* the sound started and not stopped yet */

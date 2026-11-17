@@ -10,8 +10,14 @@
  *
  * As Moonride's audio.cpp (JustAnotherPU, GPL-3.0-or-later), whose ALSA handling this follows: libasound is opened
  * at run time (dlopen), the device NONBLOCKING (an input nobody consumes must never park a thread or keep the device
- * busy: Vizualyse's notes), and a packet is dropped, not queued, when the device is more than its buffer + 25 ms
- * behind or full: live sound stays live after the first, slow, connect of an input.
+ * busy: Vizualyse's notes). What the device has no room for yet waits in a queue of our own and goes first at the next
+ * packet, up to 150 ms; beyond that the oldest is dropped, so live sound stays live after the first, slow, connect of
+ * an input. After an underrun the device is prepared again and the same sound written, so nothing is lost to it.
+ *
+ * The car's sound clock and the iPhone's run at slightly different rates, so what waits for the speakers (the
+ * device's delay and our queue) creeps up or down over a film, until the device runs dry or overflows: a click every
+ * few minutes. Its average is kept where it settled in the first 3 s: while it is more than 12 ms off, each packet
+ * leaves out or repeats one sample (0.2 % at most, not heard), until it is back within 3 ms.
  *
  * MGU_AUDIO   alsa:<device> (default alsa:plug:smartx:CarLifeMedia_CF_48_STEREO) | null | wav:<path> (tests)
  * MGU_ALSA_US the ALSA buffer in us (default 64000: smartx's 3 periods of 1024 frames, measured by Moonride)
@@ -63,10 +69,27 @@ FILE *g_wav = nullptr;
 uint32_t g_wav_bytes = 0;
 double g_volume = 1.0;
 std::vector<int16_t> g_out;
-mgu_audio_stats_t g_st = {0, 0, 0, 0, 0, 0, -1.0, 0};
+mgu_audio_stats_t g_st = {0, 0, 0, 0, 0, -1.0, 0, 0};
+
+/* sound decoded and not yet taken by the device (interleaved S16), and the clock follower */
+std::vector<int16_t> g_pend;
+double g_level_avg = -1, g_level_target = -1;   /* ms waiting for the speakers: its average, where it settled */
+unsigned long long g_frames_in = 0;              /* frames since the output opened */
+int g_adjust = 0;                                /* -1 leaving out, +1 repeating a sample per packet, 0 not */
+long g_last_delay = -1;
+bool g_flowing = false;                          /* the device has been seen taking sound: a gap from now is heard */
+const double kPendMaxMs = 150, kSettleS = 3, kOffMs = 12, kBackMs = 3;
 
 unsigned buffer_us() { const char *e = getenv("MGU_ALSA_US"); return e && atoi(e) > 0 ? (unsigned) atoi(e) : 64000; }
-long drop_above_ms() { return (long) (buffer_us() / 1000) + 25; }
+
+void reset_follower() {
+    g_pend.clear();
+    g_level_avg = g_level_target = -1;
+    g_frames_in = 0;
+    g_adjust = 0;
+    g_last_delay = -1;
+    g_flowing = false;
+}
 
 bool alsa_load() {
     if (g_alsa_loaded) return true;
@@ -137,6 +160,7 @@ void close_all() {
     if (g_wav) { wav_header(g_wav_bytes); fclose(g_wav); g_wav = nullptr; }
     g_ct = -1;
     g_st.open = 0;
+    reset_follower();
 }
 
 int16_t clip(float f) { return f >= 1.0f ? 32767 : f <= -1.0f ? -32768 : (int16_t) lrintf(f * 32767.0f); }
@@ -164,6 +188,19 @@ void to_s16(const AVFrame *f) {
     }
 }
 
+/* g_pend to the device, as much as it takes; after an underrun, prepared again and written again */
+void write_pending() {
+    unsigned long frames = g_pend.size() / kCh;
+    if (!frames) return;
+    long w = A.writei(g_pcm, g_pend.data(), frames);
+    if (w < 0 && w != -EAGAIN) {
+        if (g_flowing) g_st.xruns++;
+        A.recover(g_pcm, (int) w, 1);
+        w = A.writei(g_pcm, g_pend.data(), frames);
+    }
+    if (w > 0) g_pend.erase(g_pend.begin(), g_pend.begin() + (size_t) w * kCh);
+}
+
 void play_out() {
     const unsigned long n = g_out.size() / kCh;
     if (!n) return;
@@ -174,13 +211,38 @@ void play_out() {
     }
     if (g_kind != ALSA || !g_pcm) return;
     long d = 0;
-    if (A.delay(g_pcm, &d) == 0) {
+    const bool have_delay = A.delay(g_pcm, &d) == 0 && d >= 0;
+    if (have_delay) {
         g_st.device_ms = d * 1000.0 / g_rate;
-        if (g_st.device_ms > drop_above_ms()) { g_st.dropped_late++; return; }
+        if (g_last_delay >= 0 && d < g_last_delay) g_flowing = true;
     }
-    long w = A.writei(g_pcm, g_out.data(), n);
-    if (w == -EAGAIN) g_st.dropped_full++;   /* nobody reads (the source not connected yet): never wait */
-    else if (w < 0) { g_st.xruns++; A.recover(g_pcm, (int) w, 1); }
+    /* the clock follower: the average of what waits for the speakers, once the device takes sound */
+    if (have_delay && g_flowing) {
+        const double level = (d + (double) (g_pend.size() / kCh)) * 1000.0 / g_rate;
+        g_level_avg = g_level_avg < 0 ? level : g_level_avg * 0.98 + level * 0.02;
+        if (g_level_target < 0 && g_frames_in >= kSettleS * g_rate) g_level_target = g_level_avg;
+        if (g_level_target >= 0) {
+            const double off = g_level_avg - g_level_target;
+            if (g_adjust == 0 && off > kOffMs) g_adjust = -1;
+            else if (g_adjust == 0 && off < -kOffMs) g_adjust = 1;
+            else if (g_adjust != 0 && off < kBackMs && off > -kBackMs) g_adjust = 0;
+        }
+    }
+    g_frames_in += n;
+    /* the packet into the queue: one sample left out or repeated while the follower says so */
+    size_t take = g_out.size();
+    if (g_adjust < 0 && n > 1) { take -= kCh; g_st.adjusted++; }
+    g_pend.insert(g_pend.end(), g_out.begin(), g_out.begin() + (long) take);
+    if (g_adjust > 0) { g_pend.insert(g_pend.end(), g_out.end() - kCh, g_out.end()); g_st.adjusted++; }
+    /* more waiting than the device will take soon (nobody reads yet, or more sound than it plays): the oldest goes */
+    const size_t max = (size_t) (kPendMaxMs * g_rate / 1000) * kCh;
+    if (g_pend.size() > max) {
+        if (g_flowing) g_st.dropped_full++;
+        g_pend.erase(g_pend.begin(), g_pend.end() - (long) max);
+    }
+    write_pending();
+    long after = 0;
+    if (A.delay(g_pcm, &after) == 0 && after >= 0) g_last_delay = after;   /* compared at the next packet */
 }
 
 /* the output (ALSA, wav or null) for g_rate; g_err and -1 when it cannot */
@@ -267,6 +329,7 @@ extern "C" void mgu_audio_packet(const unsigned char *data, int len) {
 extern "C" void mgu_audio_flush(void) {
     std::lock_guard<std::mutex> l(g_m);
     if (g_ctx) avcodec_flush_buffers(g_ctx);
+    g_pend.clear();
 }
 
 extern "C" void mgu_audio_volume(double v) {

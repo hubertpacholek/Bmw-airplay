@@ -7,17 +7,22 @@ UxPlay's AirPlay mirroring protocol for the iDrive 7 head unit (MGU), run by the
 the pictures to mgu-render's frame file. **Stage 3**: every audio packet goes to `audio/mgu_audio.cpp`: AAC-ELD (mirroring), ALAC or AAC-LC decoded with
 libavcodec (FFmpeg n6.1.2, built by `build.sh`, LGPL-2.1-or-later, its licence ships
 as `FFMPEG-LICENSE`), at the iPhone's volume, into ALSA `plug:smartx:CarLifeMedia_CF_48_STEREO` (libasound opened at
-run time, the device non-blocking, late packets dropped: Moonride's way). Started as root by the service, the binary
+run time, the device non-blocking: Moonride's way; what it has no room for yet waits, up to 150 ms, and after an underrun
+the same sound is written again; the average of what waits for the speakers is kept where it settled by leaving out or
+repeating one sample a packet, as the car's sound clock and the iPhone's drift apart). Started as root by the service, the binary
 drops to nobody with the groups video and mgu_alsa itself (`MGU_RUN_AS`, `MGU_GROUPS`) before anything runs, and refuses
 to run if it cannot.
 
 **The jitter buffer** (`renderer/mgu_jitter.c`): Wi-Fi delivers the mirrored access units and sound packets
 unevenly, a few at once and then a gap, and shown the moment they arrive a film stutters. Each goes to its queue and is
 handed on at the time the iPhone stamped it, `MGU_JITTER_MS` (default 200, 0..1000; 0 hands each on as it arrives) after
-the fastest of the last 2 to 4 s arrived: an access unit is decoded and its picture held until then, a sound packet
-played then. Video and sound have a queue each, so each keeps the timing it had without the buffer, shifted by the same
-delay. `jitter <ms>` on stdin changes the delay; the stats carry `jms`, `vq` / `aq` (waiting) and `vlate` / `aqlate`
-(handed on more than 40 ms after they were due).
+the fastest pictures of the last 2 to 4 s arrived: an access unit is decoded and its picture held until then, a sound packet
+played then. Sound is on the pictures' timeline: the iPhone stamps it with the time it is to be heard, about 0.2 s after
+sending it, so it waits that much longer than the picture, stays in step with it, and a packet the iPhone sends again
+(sound comes over UDP; UxPlay holds the ones after a missing packet until it comes) has that much more time to arrive. A
+sound packet more than 60 ms late is dropped while newer ones wait, so the sound catches up with its time. `jitter <ms>`
+on stdin changes the delay; the stats carry `jms`, `vq` / `aq` (waiting), `vlate` / `aqlate` (handed on more than 40 ms
+after they were due), `aqdrop` (late sound dropped) and `agaps` (every gap in the sound; the app shows it).
 
 **Stage 4**: a video sent with AirPlay's video button (`-hls`; YouTube's HLS through UxPlay's local playlists, or a
 direct http(s) address) is played by `player/mgu_hls.cpp` in place of GStreamer's playbin: libavformat reads it (hls,
@@ -34,6 +39,7 @@ and the hls demuxer opens each segment without our options).
 | `UXPLAY_REV` | the UxPlay commit built ([FDH2/UxPlay](https://github.com/FDH2/UxPlay), UxPlay 1.74) |
 | `patch.py` | the changes to it: model `AppleTV5,4` and version `366.0` (iOS 27 sends the mirrored picture during CarPlay only to a receiver that presents itself so; found 2026-11-08), and the mDNS address from `UXPLAY_MDNS_IPV4` with `UXPLAY_MDNS_NO_IPV6` (the head unit has several interfaces) |
 | `renderer/mgu_renderer.c` | the renderer API without GStreamer |
+| `audio/sim_alsa.c`, `audio/test_follow.cpp` | the sound's way to the device against a simulated SmartXbar input whose clock is off (`make test-follow` in build.sh's container: +2000, -2000 and 0 ppm, never run dry nor overflowing) |
 | `renderer/mgu_jitter.c`, `renderer/test_jitter.c` | the jitter buffer for screen mirroring, and its test off the car (`cc -O2 -pthread renderer/test_jitter.c renderer/mgu_jitter.c -lm && ./a.out`) |
 | `player/mgu_hls.cpp`, `player/test_hls.cpp` | stage 4: the player, and a program that plays an address off the car (`make ... build/out/test_hls`; `MGU_VIDEO_OFF=1`, `MGU_AUDIO=wav:<file>`) |
 | `ffmpeg-tls.py` | FFmpeg's TLS checks certificates and names by default (`MGU_CA_FILE`) |

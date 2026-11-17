@@ -33,7 +33,7 @@ const MINUTES = 60;
 const EXTEND_BELOW_MS = 10 * 60000;
 // the service version this app is built with: an older one still running (its files were updated, the
 // process not) is asked to end, and the socket starts the new one at the next request
-const SERVICE_VERSION = '1.1.0';
+const SERVICE_VERSION = '1.2.0';
 const older = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 const GREEN = '#2fd27a', AMBER = '#ffb020', RED = '#ef2b2d';
 
@@ -118,7 +118,7 @@ function view(s, pic, ca, opts) {
     else if (snd && r.soundRunning) {
         if (ca && ca.taken) { ss = 'bad'; sd = 'the speakers are in use by another app (Emby)'; }
         else if (ca && ca.error) { ss = 'bad'; sd = ca.error; }
-        else if (ca && ca.connected) { ss = 'ok'; sd = 'on the car speakers'; }
+        else if (ca && ca.connected) { ss = 'ok'; sd = 'on the car speakers' + (st.agaps ? ', ' + st.agaps + (st.agaps === 1 ? ' dropout' : ' dropouts') : ''); }
         else { ss = 'wait'; sd = 'connecting the speakers'; }
     }
     rows.push({ label: 'Sound', state: ss, detail: sd });

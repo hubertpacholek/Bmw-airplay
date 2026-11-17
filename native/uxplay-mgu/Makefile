@@ -88,3 +88,12 @@ $(OUT)/uxplay-mgu: $(C_OBJS) $(VIDEO_OBJS) $(AUDIO_OBJS) $(PLAYER_OBJS) $(OUT)/o
 # the stage 4 player off the car (tests): tools/test_hls.sh
 $(OUT)/test_hls: player/test_hls.cpp $(PLAYER_OBJS) $(VIDEO_OBJS) $(AUDIO_OBJS) $(STUBS) $(FFLIBS)
 	$(CXX) -std=c++14 -O2 -Iplayer -o $@ player/test_hls.cpp $(PLAYER_OBJS) $(VIDEO_OBJS) $(AUDIO_OBJS) $(STUBS) $(FFLIBS) $(LIBS)
+
+# the sound's way to the device off the car, against a simulated device whose clock is off (audio/test_follow.cpp)
+$(OUT)/sim/libasound.so.2: audio/sim_alsa.c
+	@mkdir -p $(@D)
+	$(CC) -O2 -shared -fPIC -Wl,-soname,libasound.so.2 -o $@ $<
+$(OUT)/test_follow: audio/test_follow.cpp $(AUDIO_OBJS) $(FFLIBS)
+	$(CXX) -std=c++14 -O2 -Iaudio -o $@ audio/test_follow.cpp $(AUDIO_OBJS) $(FFLIBS) -lssl -lcrypto -lpthread -ldl -lm
+test-follow: $(OUT)/test_follow $(OUT)/sim/libasound.so.2
+	for ppm in 2000 -2000 0; do SIM_PPM=$$ppm LD_LIBRARY_PATH=$(OUT)/sim $(OUT)/test_follow 20 || exit 1; done

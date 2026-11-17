@@ -76,7 +76,7 @@ function freshState() {
     return {
         running: false, pid: null, starts: 0, exit: null, error: null, ip: null, iface: null,
         client: null, video: null, videoRunning: false, audio: null, decoder: null, sound: null, soundRunning: false, cpu: null, hls: null,
-        stream: { frames: 0, fps: 0, kbps: 0, idr: 0, sps: 0, audio: 0, shown: 0, decerr: 0, adec: 0, alate: 0, afull: 0, aerr: 0, axrun: 0, adev: -1, at: 0 },
+        stream: { frames: 0, fps: 0, kbps: 0, idr: 0, sps: 0, audio: 0, shown: 0, decerr: 0, adec: 0, afull: 0, aerr: 0, axrun: 0, adev: -1, agaps: 0, aadj: 0, at: 0 },
         lines: [],
     };
 }
@@ -123,7 +123,8 @@ function createReceiver(opts) {
         case 'stats':
             sampleCpu();
             st.stream = { frames: j.frames, fps: j.fps, kbps: j.kbps, idr: j.idr, sps: j.sps, audio: j.audio, shown: j.shown || 0, decerr: j.decerr || 0,
-                adec: j.adec || 0, alate: j.alate || 0, afull: j.afull || 0, aerr: j.aerr || 0, axrun: j.axrun || 0, adev: j.adev != null ? j.adev : -1, at: now() };
+                adec: j.adec || 0, afull: j.afull || 0, aerr: j.aerr || 0, axrun: j.axrun || 0, adev: j.adev != null ? j.adev : -1,
+                agaps: j.agaps || 0, aadj: j.aadj || 0, at: now() };
             break;
         case 'sound':
             st.sound = j.ok ? { ok: true, device: j.device, ct: j.ct, at: now() } : { ok: false, error: j.error, ct: j.ct, at: now() };

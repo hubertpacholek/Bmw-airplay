@@ -2,7 +2,8 @@
  *
  * test_jitter.c - the jitter buffer off the car: cc -O2 -pthread renderer/test_jitter.c renderer/mgu_jitter.c && ./a.out
  * 60 fps frames stamped by the sender arrive with 0-120 ms of random delay (bursts and gaps, as over Wi-Fi); with a
- * 200 ms buffer they must come out evenly. Then a flush in the middle of a wait, and the delay 0 passthrough.
+ * 200 ms buffer they must come out evenly. Then a flush in the middle of a wait, and sound on the picture's timeline:
+ * stamped 0.2 s ahead, as the iPhone stamps it, it waits 0.2 s longer than the picture.
  */
 #include <assert.h>
 #include <math.h>
@@ -23,6 +24,12 @@ static void fn(const unsigned char *d, int len, int64_t due, mgu_jitter_t *q, un
     int i = *(const int *) d;
     assert(i == out_n);   /* in order */
     out_t[out_n++] = mgu_jitter_now();
+}
+
+static int64_t last_due;
+static void fn_due(const unsigned char *d, int len, int64_t due, mgu_jitter_t *q, unsigned gen) {
+    (void) d; (void) len; (void) q; (void) gen;
+    last_due = due;
 }
 
 static void sleep_until_rt(int64_t t) { int64_t d = t - rt(); if (d > 0) { struct timespec ts = { d / 1000000000LL, d % 1000000000LL }; nanosleep(&ts, NULL); } }
@@ -75,5 +82,23 @@ int main(void) {
     mgu_jitter_stats(q, &s);
     assert(s.queued == 0);
     printf("flush: ok\n");
+
+    /* sound anchored on the picture: a picture arriving at its stamp waits the delay; sound stamped 200 ms ahead waits
+     * 200 ms more, and on its own (no picture yet) only the delay */
+    mgu_jitter_set_delay(200);
+    mgu_jitter_t *v = mgu_jitter_new(fn_due, false), *a = mgu_jitter_new(fn_due, true);
+    mgu_jitter_anchor(a, v);
+    int64_t t0 = mgu_jitter_now();
+    mgu_jitter_push(a, (const unsigned char *) "a", 1, (uint64_t) (rt() + 200000000LL));
+    usleep(300000);
+    double alone = (last_due - t0) / 1e6;
+    mgu_jitter_push(v, (const unsigned char *) "v", 1, (uint64_t) rt());
+    usleep(250000);
+    t0 = mgu_jitter_now();
+    mgu_jitter_push(a, (const unsigned char *) "a", 1, (uint64_t) (rt() + 200000000LL));
+    usleep(500000);
+    double anchored = (last_due - t0) / 1e6;
+    printf("sound alone waits %.0f ms, on the picture's timeline %.0f ms\n", alone, anchored);
+    assert(fabs(alone - 200) < 15 && fabs(anchored - 400) < 15);
     return 0;
 }
