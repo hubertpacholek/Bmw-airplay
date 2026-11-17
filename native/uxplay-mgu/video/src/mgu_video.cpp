@@ -42,6 +42,8 @@ bool g_native = false;
 unsigned long long g_shown = 0, g_errors = 0;
 uint32_t g_w = 1920, g_h = 720;
 std::string g_path = "/dev/shm/mgu-video-hp-airplay", g_err;
+/* where the picture is in the frame file's frames, the letterbox bars left out (the HUD shows only it) */
+volatile uint32_t g_pic[4] = {0, 0, 0, 0};
 
 /* opens the frame file and the decoder; false (once, with g_err) when it cannot */
 bool open_locked() {
@@ -98,6 +100,7 @@ static int frame_locked(const unsigned char *data, int len, long long pts_ms, in
             }
             if (!g_file) return;
             ytdec::nv12_to_i420(f.y, f.uv, f.pitch, g_native ? g_w : f.w, g_native ? g_h : f.h, g_mgvf.begin());
+            g_pic[0] = f.pic_x, g_pic[1] = f.pic_y, g_pic[2] = f.pic_w, g_pic[3] = f.pic_h;
             g_mgvf.commit();
             g_shown++;
         }, &err, true, true, wait ? (int64_t) pts_ms : -1);
@@ -161,6 +164,10 @@ extern "C" void mgu_video_close(void) {
     g_mgvf.close();
     g_file = false;
     unlink(g_path.c_str());
+}
+
+extern "C" void mgu_video_picture(unsigned *x, unsigned *y, unsigned *w, unsigned *h) {
+    *x = g_pic[0], *y = g_pic[1], *w = g_pic[2], *h = g_pic[3];
 }
 
 extern "C" const char *mgu_video_error(void) { return g_err.c_str(); }

@@ -21,7 +21,8 @@ const VIDEO_PATH = '/dev/shm/mgu-video-hp-airplay';
 const VIDEO_SIZE = '1920x720';
 // stage 3: SmartXbar's input for CarLife (unused in Europe), which Moonride plays into; plug converts 44.1 to 48 kHz
 const AUDIO_DEVICE = 'plug:smartx:CarLifeMedia_CF_48_STEREO';
-const RX_GROUPS = ['video', 'mgu_alsa'];
+// video: the GPU's render node; mgu_alsa: the sound devices; tm_oap_app: cluster-render's socket (the picture on the HUD)
+const RX_GROUPS = ['video', 'mgu_alsa', 'tm_oap_app'];
 // stage 4: a video the iPhone hands over (AirPlay's video button), played by the receiver's own player. Its variants
 // limited to H.264 (the GPU's), 720p (the screen is 720 high; 1080p through a hotspot stalled: UxPlay's -custom filter
 // on YouTube's master playlist)
@@ -75,7 +76,7 @@ const NOISE = /seconds since last client feedback|^\s*$|httpd didn't get respons
 function freshState() {
     return {
         running: false, pid: null, starts: 0, exit: null, error: null, ip: null, iface: null,
-        client: null, video: null, videoRunning: false, audio: null, decoder: null, sound: null, soundRunning: false, cpu: null, hls: null,
+        client: null, video: null, videoRunning: false, audio: null, decoder: null, sound: null, soundRunning: false, cpu: null, hls: null, hud: null,
         stream: { frames: 0, fps: 0, kbps: 0, idr: 0, sps: 0, audio: 0, shown: 0, decerr: 0, adec: 0, afull: 0, aerr: 0, axrun: 0, adev: -1, agaps: 0, aadj: 0, at: 0 },
         lines: [],
     };
@@ -154,6 +155,10 @@ function createReceiver(opts) {
         case 'hlsend':
             if (st.hls) st.hls.ended = { why: j.why, error: j.error || null, at: now() };
             if (o.log) o.log('receiver: video ' + (j.why === 'end' ? 'ended' : j.why === 'stopped' ? 'stopped' : 'failed: ' + j.error));
+            break;
+        case 'hud':
+            st.hud = { state: j.state, reason: j.reason || '', at: now() };
+            if (o.log) o.log('receiver: HUD ' + j.state + (j.reason ? ': ' + j.reason : ''));
             break;
         case 'soundstop':
             // the iPhone's session is over (its last connection closed), stopped from the phone or not
@@ -308,7 +313,15 @@ function createReceiver(opts) {
         return true;
     }
 
-    return { start, stop, killSync, control, state: () => st };
+    /** the picture on the HUD: on (to be asked again within 3 s to stay on) or off; false when no receiver */
+    function hud(on) {
+        const c = child;
+        if (!c || !c.stdin || !c.stdin.writable) return false;
+        try { c.stdin.write(on ? 'hud on\n' : 'hud off\n'); } catch (e) { return false; }
+        return true;
+    }
+
+    return { start, stop, killSync, control, hud, state: () => st };
 }
 
 module.exports = { createReceiver, PORTS, BASE_PORT, VIDEO_PATH, AUDIO_DEVICE, HLS_PROFILE, IDENTITIES };

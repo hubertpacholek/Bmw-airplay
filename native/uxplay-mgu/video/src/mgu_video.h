@@ -22,6 +22,8 @@ void mgu_video_close(void);
 const char *mgu_video_error(void);
 const char *mgu_video_path(void);
 void mgu_video_size(unsigned *w, unsigned *h);
+/* where the picture is in the last frame written, the letterbox bars left out (0 x 0 before the first) */
+void mgu_video_picture(unsigned *x, unsigned *y, unsigned *w, unsigned *h);
 #ifdef __cplusplus
 }
 #endif

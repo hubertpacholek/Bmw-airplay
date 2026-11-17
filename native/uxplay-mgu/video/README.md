@@ -4,7 +4,7 @@ H.264 from the iPhone's screen mirroring, decoded on the head unit's GPU and wri
 
 | File | From |
 |---|---|
-| `src/decoder_msdk.cpp`, `.h`, `src/nal_reader.cpp`, `.h` | [JustAnotherPU/moonride](https://github.com/JustAnotherPU/moonride) `native/mgu-moonlight`, commit `a834a14` (GPL-3.0-or-later), its copy of Robert Nisipeanu's waze-on-cluster decoder ([robertnisipeanu/idrive-apps](https://github.com/robertnisipeanu/idrive-apps)); unchanged |
+| `src/decoder_msdk.cpp`, `.h`, `src/nal_reader.cpp`, `.h` | [JustAnotherPU/moonride](https://github.com/JustAnotherPU/moonride) `native/mgu-moonlight`, commit `a834a14` (GPL-3.0-or-later), its copy of Robert Nisipeanu's waze-on-cluster decoder ([robertnisipeanu/idrive-apps](https://github.com/robertnisipeanu/idrive-apps)); unchanged but for the picture's rect in `VideoFrame` (`pic_x` .. `pic_h`, for the HUD) |
 | `src/mgvf.cpp`, `.h` | Moonride, same commit: mgu-render's frame file (MGVF) and NV12 -> I420; unchanged but for the SPDX line |
 | `abi/include/mfx/` | Intel Media SDK headers as Moonride vendors them (MIT, `abi/include/mfx/LICENSE`) |
 | `abi/*.symbols` | Moonride's export lists of the unit's `libmfxhw64`, `libva`, `libva-drm`: link stubs and the import check |

@@ -33,7 +33,7 @@ const MINUTES = 60;
 const EXTEND_BELOW_MS = 10 * 60000;
 // the service version this app is built with: an older one still running (its files were updated, the
 // process not) is asked to end, and the socket starts the new one at the next request
-const SERVICE_VERSION = '1.2.0';
+const SERVICE_VERSION = '1.3.0';
 const older = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 const GREEN = '#2fd27a', AMBER = '#ffb020', RED = '#ef2b2d';
 
@@ -122,6 +122,16 @@ function view(s, pic, ca, opts) {
         else { ss = 'wait'; sd = 'connecting the speakers'; }
     }
     rows.push({ label: 'Sound', state: ss, detail: sd });
+    // the HUD (setting hud): only while parked
+    if (o.hud) {
+        const hu = r.hud || {};
+        let hs = 'off', hd = 'none yet';
+        if (o.moving) hd = 'off while driving';
+        else if (hu.state === 'shown') { hs = 'ok'; hd = 'on the head-up display'; }
+        else if (hu.state === 'connecting' || hu.state === 'waiting') { hs = 'wait'; hd = hu.reason || 'connecting'; }
+        else if (hu.state === 'unavailable' || hu.state === 'error') { hs = 'bad'; hd = hu.reason || hu.state; }
+        rows.push({ label: 'HUD', state: hs, detail: hd });
+    }
     // the internet, for a video sent with the AirPlay button
     if (r.hlsOn) {
         const px = r.proxy || {}, ps2 = px.stats || {};
@@ -265,7 +275,7 @@ mgu.run({
         setInterval(() => { if (mirror.state().shown) mirror.tick(); }, 100);
         // leaving the app (HOME, another app, CarPlay's tile) ends the iPhone's mirroring, so CarPlay is free at once
         // (setting endOnLeave, on): 1.5 s after the page went, once per session
-        let goneAt = 0, ended = false;
+        let goneAt = 0, ended = false, hudAsked = false;
         // stage 3: the speakers while the receiver has an iPhone with sound and the app is up (leaving it ends the session)
         const carAudio = createCarAudio(ctx.signals, log, { file: ctx.dataDir ? require('path').join(ctx.dataDir, 'car-audio.json') : null });
         function syncMirror() {
@@ -274,6 +284,15 @@ mgu.run({
             mirror.update({ rx: rxOn, pageVisible: shown(), driving: ctx.settings.get('parkedOnly') !== false && parked.moving() });
             // the speakers while the iPhone's sound plays: stopped on the phone, they go back to the source before at once
             carAudio.want(!!(rxOn && rxOn.running && rxOn.soundRunning && shown()));
+            // the HUD (setting hud): asked for each second while it should show, and off 3 s after the last ask
+            // (renderer/mgu_hud.c). Only while parked, whatever "Picture only while parked" says: the HUD is in the
+            // driver's view
+            const picture = !!(rxOn && rxOn.running && (rxOn.videoRunning || (rxOn.hls && rxOn.hls.open && !rxOn.hls.ended)));
+            const hudWant = ctx.settings.get('hud') === true && picture && !parked.moving();
+            if (hudWant || hudAsked) {
+                hudAsked = hudWant;
+                ask('hud', { on: hudWant }).then((r) => { if (r) st = r; });
+            }
             if (shown()) { goneAt = 0; ended = false; return; }
             if (!rxOn || !rxOn.client || ended || ctx.settings.get('endOnLeave') === false) return;
             if (!goneAt) goneAt = Date.now();
@@ -283,7 +302,7 @@ mgu.run({
                 ask('end-session', { why: 'the app left the front' }).then((r) => { if (r) st = r; });
             }
         }
-        if (ctx.app && ctx.app.on) ctx.app.on('shutdown', () => { mirror.close(); carAudio.want(false); });
+        if (ctx.app && ctx.app.on) ctx.app.on('shutdown', () => { mirror.close(); carAudio.want(false); if (hudAsked) ask('hud', { on: false }); });
         ui.onClick('BTN_STOP', () => command('stop', 'Stopping...'));
 
         function render() {
@@ -298,7 +317,8 @@ mgu.run({
         }
 
         function draw(cv, t) {
-            const v = view(st, mirror.state(), carAudio.state(), { videoButtonOff: ctx.settings.get('videoButton') === false });
+            const v = view(st, mirror.state(), carAudio.state(), { videoButtonOff: ctx.settings.get('videoButton') === false,
+                hud: ctx.settings.get('hud') === true, moving: parked.moving() });
             const TONE = { ok: GREEN, wait: AMBER, bad: RED, ready: GREEN, idle: t.accent };
             const hc = TONE[v.head.tone] || t.accent;
             // the state, across the page

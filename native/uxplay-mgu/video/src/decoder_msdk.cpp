@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Robert Nisipeanu
 // Modified 2026-11 by JustAnotherPU (GPL-3.0 section 5(a)) from github.com/robertnisipeanu/idrive-apps,
 // native/waze-on-cluster/src/decoder_msdk.cpp.
+// Modified 2026-11 for AirPlay HP (GPL-3.0 section 5(a)): VideoFrame says where the picture is (pic_x .. pic_h).
 #include "decoder_msdk.h"
 #include "nal_reader.h"
 
@@ -477,7 +478,9 @@ bool Decoder::State::convert(mfxFrameSurface1 *in, const FrameSink &cb)
 
     /* The decode task finished before the VPP task that read its surface,
      * so its flags are set. */
-    VideoFrame f = {w, h, in->Data.Corrupted, ts_ms(in->Data.TimeStamp), vout.Data.Y, vout.Data.UV, vout.Data.Pitch};
+    const mfxFrameInfo &o = vpp.vpp.Out;
+    VideoFrame f = {w, h, in->Data.Corrupted, ts_ms(in->Data.TimeStamp), vout.Data.Y, vout.Data.UV, vout.Data.Pitch,
+                    o.CropX, o.CropY, o.CropW, o.CropH};
     cb(f);
     return true;
 }
@@ -492,7 +495,7 @@ bool Decoder::State::skip(mfxFrameSurface1 *out, mfxSyncPoint sync, const FrameS
     const mfxStatus sts = MFXVideoCORE_SyncOperation(session, sync, kSyncTimeoutMs);
     if (sts != MFX_ERR_NONE)
         return fail(mfx_error("MFXVideoCORE_SyncOperation", sts));
-    VideoFrame f = {w, h, out->Data.Corrupted, ts_ms(out->Data.TimeStamp), nullptr, nullptr, 0};
+    VideoFrame f = {w, h, out->Data.Corrupted, ts_ms(out->Data.TimeStamp), nullptr, nullptr, 0, 0, 0, w, h};
     cb(f);
     return true;
 }

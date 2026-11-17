@@ -8,7 +8,9 @@ Oparte na **myAirPlay** z [aurelmarius/bmw-apps](https://github.com/aurelmarius/
 (historia zmian tych plików jest zachowana w tym repozytorium). Różnica: **bufor
 wyrównujący** dla odbicia lustrzanego ekranu. Obraz i dźwięk idą według sygnatur czasu
 iPhone'a, 200 ms po najszybszych pakietach, więc nierówne Wi-Fi nie powoduje przycinek w
-filmach (`native/uxplay-mgu/README.md`, „The jitter buffer”).
+filmach (`native/uxplay-mgu/README.md`, „The jitter buffer”). Opcjonalnie obraz także na HUD, tylko na
+postoju (ustawienie „Picture on the head-up display too”; wymaga **cluster-render** ze Store, ze źródła
+`robertnisipeanu/idrive-apps`).
 
 ## Instalacja
 

@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Robert Nisipeanu
 // Modified 2026-11 by JustAnotherPU (GPL-3.0 section 5(a)) from github.com/robertnisipeanu/idrive-apps,
 // native/waze-on-cluster/src/decoder_msdk.h.
+// Modified 2026-11 for AirPlay HP (GPL-3.0 section 5(a)): VideoFrame says where the picture is (pic_x .. pic_h).
 /* Hardware H.264 decoder: Annex-B byte stream in, NV12 frames out.
  *
  * ytdec's copy of waze-on-cluster's decoder (src/decoder_msdk.cpp there).
@@ -79,6 +80,8 @@ struct VideoFrame {
      * feed/flush/shutdown. Null for a frame decoded without a picture. */
     const uint8_t *y, *uv;
     uint32_t pitch;
+    /* uxplay-mgu: where the picture is within w x h (the rest is the letterbox bars) */
+    uint32_t pic_x, pic_y, pic_w, pic_h;
 };
 
 class Decoder {

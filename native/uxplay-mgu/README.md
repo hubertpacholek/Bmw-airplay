@@ -24,6 +24,15 @@ sound packet more than 60 ms late is dropped while newer ones wait, so the sound
 on stdin changes the delay; the stats carry `jms`, `vq` / `aq` (waiting), `vlate` / `aqlate` (handed on more than 40 ms
 after they were due), `aqdrop` (late sound dropped) and `agaps` (every gap in the sound; the app shows it).
 
+**The HUD** (`renderer/mgu_hud.c`): while the service asks for it (`hud on` on stdin, again at least every 3 s; the
+app asks each second while the car is parked), a thread connects to cluster-render
+([robertnisipeanu/idrive-apps](https://github.com/robertnisipeanu/idrive-apps) `native/cluster-render`, its socket's
+group `tm_oap_app` is one of the receiver's), makes one video layer on its target `hud` (800x480 on iDrive 7), and sends
+it the frame file's newest picture, the letterbox bars left out (the decoder says where the picture is), fitted by an
+area average, at most `MGU_HUD_FPS` (15) a second; a picture that stays the same is repeated once a second for 5 s.
+Not asked for, the connection closes and cluster-render fades the HUD back to the car's own. Its events: `hud`
+(`state` off, connecting, waiting, shown, unavailable or error, and `reason`).
+
 **Stage 4**: a video sent with AirPlay's video button (`-hls`; YouTube's HLS through UxPlay's local playlists, or a
 direct http(s) address) is played by `player/mgu_hls.cpp` in place of GStreamer's playbin: libavformat reads it (hls,
 mpegts, mp4; http, https through `http_proxy`, the service's proxy), one H.264 stream (the highest bitrate up to
@@ -40,6 +49,7 @@ and the hls demuxer opens each segment without our options).
 | `patch.py` | the changes to it: model `AppleTV5,4` and version `366.0` (iOS 27 sends the mirrored picture during CarPlay only to a receiver that presents itself so; found 2026-11-08), and the mDNS address from `UXPLAY_MDNS_IPV4` with `UXPLAY_MDNS_NO_IPV6` (the head unit has several interfaces) |
 | `renderer/mgu_renderer.c` | the renderer API without GStreamer |
 | `audio/sim_alsa.c`, `audio/test_follow.cpp` | the sound's way to the device against a simulated SmartXbar input whose clock is off (`make test-follow` in build.sh's container: +2000, -2000 and 0 ppm, never run dry nor overflowing) |
+| `renderer/mgu_hud.c`, `renderer/test_hud.c` | the picture on the HUD through cluster-render, and its test against a stand-in for cluster-render's socket (`cc -O2 -pthread -Ivideo/src renderer/test_hud.c renderer/mgu_hud.c -o /tmp/th && /tmp/th`) |
 | `renderer/mgu_jitter.c`, `renderer/test_jitter.c` | the jitter buffer for screen mirroring, and its test off the car (`cc -O2 -pthread renderer/test_jitter.c renderer/mgu_jitter.c -lm && ./a.out`) |
 | `player/mgu_hls.cpp`, `player/test_hls.cpp` | stage 4: the player, and a program that plays an address off the car (`make ... build/out/test_hls`; `MGU_VIDEO_OFF=1`, `MGU_AUDIO=wav:<file>`) |
 | `ffmpeg-tls.py` | FFmpeg's TLS checks certificates and names by default (`MGU_CA_FILE`) |

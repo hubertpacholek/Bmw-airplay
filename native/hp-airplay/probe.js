@@ -35,7 +35,7 @@ const rxm = require('./receiver');
 const sockgroup = require('./sockgroup');
 const { fork } = require('child_process');
 
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const MDNS_GROUP = '224.0.0.251';
 const QUERY_NAMES = ['_airplay._tcp.local', '_raop._tcp.local', '_companion-link._tcp.local', '_apple-mobdev2._tcp.local'];
 
@@ -247,7 +247,7 @@ function createProbe(opts) {
             const r = rx.state();
             s.rx = { name: rxName(), running: r.running, pid: r.pid, starts: r.starts, error: r.error, exit: r.exit, ip: r.ip, iface: r.iface,
                 client: r.client, video: r.video, videoRunning: r.videoRunning, audio: r.audio, stream: r.stream, ports: rxm.PORTS, lines: r.lines.slice(-25),
-                decoder: r.decoder, videoPath: o.rxVideoPath || rxm.VIDEO_PATH, sound: r.sound, soundRunning: r.soundRunning, cpu: r.cpu,
+                decoder: r.decoder, videoPath: o.rxVideoPath || rxm.VIDEO_PATH, sound: r.sound, soundRunning: r.soundRunning, cpu: r.cpu, hud: r.hud,
                 hlsOn: st.hls, identity: st.identity, net: st.net, hls: r.hls, proxy: st.hls ? { state: px.state, error: px.error, stats: px.stats } : null };
         }
         s.verdict = verdict(s);
@@ -568,9 +568,15 @@ function createProbe(opts) {
         if (st.active && st.mode === 'receiver') rx.control(op, to);
         return status();
     }
+    /** the picture on the HUD: the app asks for it each second while the car is parked, and it goes off by itself 3 s
+     * after the last ask (renderer/mgu_hud.c) */
+    function hud(on) {
+        if (st.active && st.mode === 'receiver') rx.hud(!!on);
+        return status();
+    }
     function cleanupSync() { rx.killSync(); stopProxy(); if (o.nft) { try { nft.remove({ nft: o.nft }); } catch (e) { /* best effort */ } } }
 
-    return { start, stop, status, endSession, video, cleanupSync, identity: id };
+    return { start, stop, status, endSession, video, hud, cleanupSync, identity: id };
 }
 
 /* ---------------- control socket ---------------- */
@@ -599,7 +605,7 @@ function serveControl(probe, sockPath, log, onRequest, onExit) {
                     onExit();
                     return;
                 }
-                const p = m.cmd === 'end-session' ? probe.endSession(m.why) : m.cmd === 'video' ? probe.video(m.op, m.to) : m.cmd === 'start' ? probe.start(m.minutes, m.mode, m.hls, m.identity, m.net) : m.cmd === 'stop' ? probe.stop('stopped from the app') : Promise.resolve(probe.status());
+                const p = m.cmd === 'end-session' ? probe.endSession(m.why) : m.cmd === 'video' ? probe.video(m.op, m.to) : m.cmd === 'hud' ? Promise.resolve(probe.hud(m.on === true)) : m.cmd === 'start' ? probe.start(m.minutes, m.mode, m.hls, m.identity, m.net) : m.cmd === 'stop' ? probe.stop('stopped from the app') : Promise.resolve(probe.status());
                 Promise.resolve(p).then((s) => { try { c.write(JSON.stringify(s) + '\n'); } catch (e) { /* gone */ } }, (e) => { try { c.write(JSON.stringify({ error: String(e.message || e) }) + '\n'); } catch (x) { /* gone */ } });
             }
         });

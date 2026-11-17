@@ -29,6 +29,9 @@
  * "aadj" (samples added or left out to follow the car's sound clock) and "agaps" (every gap in the sound: late sound
  * dropped, the device run dry, sound that did not fit).
  *
+ * The HUD (renderer/mgu_hud.c): "hud on" on stdin, again at least every 3 s, puts the picture on the head-up display
+ * through cluster-render; "hud off", or no "hud on" for 3 s, takes it off. Its events: hud.
+ *
  * Stage 4: a video the iPhone hands over (AirPlay's video button: YouTube's HLS, served by UxPlay on localhost, or
  * a direct address) is played by player/mgu_hls.cpp in place of GStreamer's playbin: UxPlay starts it with the
  * address (video_renderer_init's uri, then video_renderer_start), the iPhone's pause / seek / progress bar come
@@ -52,6 +55,7 @@
 #include "mgu_audio.h"
 #include "mgu_hls.h"
 #include "mgu_jitter.h"
+#include "mgu_hud.h"
 #include <unistd.h>
 #include <grp.h>
 #include <pwd.h>
@@ -161,8 +165,8 @@ static char *hls_uri = NULL;     /* the address of the video to play (stage 4), 
 
 /* The service's commands on stdin, one a line: for a played video, the app's controls on the iDrive (the iPhone
  * follows them through /playback-info, the rate and the position, as it follows its own); for screen mirroring, the
- * jitter buffer's delay.
- *   pause | resume | seek <seconds> | jitter <ms> */
+ * jitter buffer's delay; the picture on the HUD.
+ *   pause | resume | seek <seconds> | jitter <ms> | hud on | hud off */
 static void *mgu_commands(void *arg) {
     (void) arg;
     char line[128];
@@ -170,6 +174,8 @@ static void *mgu_commands(void *arg) {
         double t = 0;
         int ms = 0;
         if (sscanf(line, "jitter %d", &ms) == 1) mgu_jitter_set_delay(ms);
+        else if (!strncmp(line, "hud on", 6)) { mgu_hud_want(1); continue; }    /* each second: not echoed */
+        else if (!strncmp(line, "hud off", 7)) mgu_hud_want(0);
         else if (!strncmp(line, "pause", 5)) mgu_hls_pause(1);
         else if (!strncmp(line, "resume", 6)) mgu_hls_pause(0);
         else if (sscanf(line, "seek %lf", &t) == 1 && t >= 0) mgu_hls_seek(t);
@@ -200,6 +206,7 @@ void video_renderer_init(logger_t *logger, const char *server_name, videoflip_t 
     if (!once) {
         once = true;
         atexit(mgu_video_close);   /* no frame file left behind */
+        mgu_hud_init(emit_json);
         pthread_t t;
         if (pthread_create(&t, NULL, mgu_commands, NULL) == 0) pthread_detach(t);
     }

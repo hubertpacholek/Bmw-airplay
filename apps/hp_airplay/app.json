@@ -2,7 +2,7 @@
   "id": "hp_airplay",
   "title": "AirPlay HP",
   "description": "The head unit as an AirPlay receiver for an iPhone: screen mirroring on the centre screen with the sound on the car's speakers (also with wireless CarPlay connected), and videos sent with the AirPlay button (YouTube) played by the head unit itself, with their controls on the iDrive. The picture shows while parked. Needs the AirPlay HP service.",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "vendor": "custom",
   "loggingId": "OA9A",
   "iconGlyph": "AP",
@@ -26,7 +26,7 @@
     }
   },
   "requires": {
-    "hp-airplay": "1.2.0"
+    "hp-airplay": "1.3.0"
   },
   "screens": [
     {
@@ -81,6 +81,12 @@
       "label": "Picture only while parked (off: also while driving, for passengers; the driver must not watch)",
       "type": "bool",
       "default": true
+    },
+    {
+      "key": "hud",
+      "label": "Picture on the head-up display too, only while parked (needs cluster-render from the Store)",
+      "type": "bool",
+      "default": false
     },
     {
       "key": "endOnLeave",
