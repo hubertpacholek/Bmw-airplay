@@ -35,7 +35,7 @@ const rxm = require('./receiver');
 const sockgroup = require('./sockgroup');
 const { fork } = require('child_process');
 
-const VERSION = '1.5.0';
+const VERSION = '1.6.0';
 const MDNS_GROUP = '224.0.0.251';
 const QUERY_NAMES = ['_airplay._tcp.local', '_raop._tcp.local', '_companion-link._tcp.local', '_apple-mobdev2._tcp.local'];
 
@@ -570,8 +570,8 @@ function createProbe(opts) {
     }
     /** the picture on the HUD: the app asks for it each second while its setting lets it, and it goes off by itself 3 s
      * after the last ask (renderer/mgu_hud.c) */
-    function hud(on) {
-        if (st.active && st.mode === 'receiver') rx.hud(!!on);
+    function hud(on, lay) {
+        if (st.active && st.mode === 'receiver') rx.hud(!!on, lay);
         return status();
     }
     function cleanupSync() { rx.killSync(); stopProxy(); if (o.nft) { try { nft.remove({ nft: o.nft }); } catch (e) { /* best effort */ } } }
@@ -605,7 +605,7 @@ function serveControl(probe, sockPath, log, onRequest, onExit) {
                     onExit();
                     return;
                 }
-                const p = m.cmd === 'end-session' ? probe.endSession(m.why) : m.cmd === 'video' ? probe.video(m.op, m.to) : m.cmd === 'hud' ? Promise.resolve(probe.hud(m.on === true)) : m.cmd === 'start' ? probe.start(m.minutes, m.mode, m.hls, m.identity, m.net) : m.cmd === 'stop' ? probe.stop('stopped from the app') : Promise.resolve(probe.status());
+                const p = m.cmd === 'end-session' ? probe.endSession(m.why) : m.cmd === 'video' ? probe.video(m.op, m.to) : m.cmd === 'hud' ? Promise.resolve(probe.hud(m.on === true, m)) : m.cmd === 'start' ? probe.start(m.minutes, m.mode, m.hls, m.identity, m.net) : m.cmd === 'stop' ? probe.stop('stopped from the app') : Promise.resolve(probe.status());
                 Promise.resolve(p).then((s) => { try { c.write(JSON.stringify(s) + '\n'); } catch (e) { /* gone */ } }, (e) => { try { c.write(JSON.stringify({ error: String(e.message || e) }) + '\n'); } catch (x) { /* gone */ } });
             }
         });

@@ -33,8 +33,9 @@
  * {"ev":"film","x":..,"y":..,"w":..,"h":..} in the frame file's pixels, w 0 when there are no bars; the app shows the
  * film over the whole screen by it.
  *
- * The HUD (renderer/mgu_hud.c): "hud on" on stdin, again at least every 3 s, puts the picture on the head-up display
- * through cluster-render; "hud off", or no "hud on" for 3 s, takes it off. Its events: hud.
+ * The HUD (renderer/mgu_hud.c): "hud on [SIZE X Y PACKED]" on stdin, again at least every 3 s, puts the picture on
+ * the head-up display through cluster-render, SIZE % of it placed at X %, Y % of the room left; "hud off", or no
+ * "hud on" for 3 s, takes it off. Its events: hud.
  *
  * Stage 4: a video the iPhone hands over (AirPlay's video button: YouTube's HLS, served by UxPlay on localhost, or
  * a direct address) is played by player/mgu_hls.cpp in place of GStreamer's playbin: UxPlay starts it with the
@@ -170,7 +171,7 @@ static char *hls_uri = NULL;     /* the address of the video to play (stage 4), 
 /* The service's commands on stdin, one a line: for a played video, the app's controls on the iDrive (the iPhone
  * follows them through /playback-info, the rate and the position, as it follows its own); for screen mirroring, the
  * jitter buffer's delay; the picture on the HUD.
- *   pause | resume | seek <seconds> | jitter <ms> | hud on | hud off */
+ *   pause | resume | seek <seconds> | jitter <ms> | hud on [size x y packed] | hud off */
 static void *mgu_commands(void *arg) {
     (void) arg;
     char line[128];
@@ -178,7 +179,12 @@ static void *mgu_commands(void *arg) {
         double t = 0;
         int ms = 0;
         if (sscanf(line, "jitter %d", &ms) == 1) mgu_jitter_set_delay(ms);
-        else if (!strncmp(line, "hud on", 6)) { mgu_hud_want(1); continue; }    /* each second: not echoed */
+        else if (!strncmp(line, "hud on", 6)) {    /* each second: not echoed */
+            int sz, hx, hy, pk;
+            if (sscanf(line, "hud on %d %d %d %d", &sz, &hx, &hy, &pk) == 4) mgu_hud_layout(sz, hx, hy, pk);
+            mgu_hud_want(1);
+            continue;
+        }
         else if (!strncmp(line, "hud off", 7)) mgu_hud_want(0);
         else if (!strncmp(line, "pause", 5)) mgu_hls_pause(1);
         else if (!strncmp(line, "resume", 6)) mgu_hls_pause(0);

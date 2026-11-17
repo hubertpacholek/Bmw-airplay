@@ -24,14 +24,17 @@ sound packet more than 60 ms late is dropped while newer ones wait, so the sound
 on stdin changes the delay; the stats carry `jms`, `vq` / `aq` (waiting), `vlate` / `aqlate` (handed on more than 40 ms
 after they were due), `aqdrop` (late sound dropped) and `agaps` (every gap in the sound; the app shows it).
 
-**The HUD** (`renderer/mgu_hud.c`): while the service asks for it (`hud on` on stdin, again at least every 3 s; the
-app asks each second while its setting "Picture on the HUD" lets it: only while parked, or also while driving), a thread connects to cluster-render
+**The HUD** (`renderer/mgu_hud.c`): while the service asks for it (`hud on SIZE X Y PACKED` on stdin, again at least
+every 3 s; the app asks each second while its setting "Picture on the HUD" lets it: only while parked, or also while
+driving), a thread connects to cluster-render
 ([robertnisipeanu/idrive-apps](https://github.com/robertnisipeanu/idrive-apps) `native/cluster-render`, its socket's
-group `tm_oap_app` is one of the receiver's), makes one video layer on its target `hud` (800x480 on iDrive 7), and sends
-it the frame file's newest picture, the letterbox bars left out (the decoder says where the picture is), fitted by an
-area average, at most `MGU_HUD_FPS` (15) a second; a picture that stays the same is repeated once a second for 5 s.
-Not asked for, the connection closes and cluster-render fades the HUD back to the car's own. Its events: `hud`
-(`state` off, connecting, waiting, shown, unavailable or error, and `reason`).
+group `tm_oap_app` is one of the receiver's) and sends the frame file's pictures to one video layer on its target `hud`
+(800x480 on iDrive 7): only the picture, the letterbox bars and a film's own left out, in its own shape, fitted into
+SIZE % of the HUD and placed at X %, Y % of the room left. The link to the cluster carries 5.5 MB/s at most for every
+app, so every n-th picture of the film goes, evenly, at most `MGU_HUD_FPS` (15) a second (24 or 30 fps: every 2nd), and
+with PACKED as cluster-render's packed 4x4 blocks (about a third of the bytes) where it offers them; a picture that
+stays the same is repeated once a second for 5 s. Not asked for, the connection closes and cluster-render fades the HUD
+back to the car's own. Its events: `hud` (`state` off, connecting, waiting, shown, unavailable or error, and `reason`).
 
 **Stage 4**: a video sent with AirPlay's video button (`-hls`; YouTube's HLS through UxPlay's local playlists, or a
 direct http(s) address) is played by `player/mgu_hls.cpp` in place of GStreamer's playbin: libavformat reads it (hls,

@@ -3,9 +3,10 @@
  * test_hud.c - the picture on the HUD off the car, against a stand-in for cluster-render's socket:
  *   cc -O2 -pthread -Ivideo/src renderer/test_hud.c renderer/mgu_hud.c -o test_hud && ./test_hud
  * A 1920x720 frame file with the picture in its middle 1560x720 (Y 200, U 50, V 220) and the letterbox bars black:
- * wanted, the HUD gets hello, one video layer of 800x480 and frames with the picture fitted (800x368, centred, the
- * bars left out) in cluster-render's atlas (U and V side by side); asked no more, it goes off within 3 s; "hud off"
- * at once.
+ * wanted, the HUD gets hello, one video layer the picture's shape (800x368, centred) and frames of only the picture
+ * in cluster-render's atlas (U and V side by side); a smaller size makes the layer again (dropping the old one), a
+ * new place only moves it; a 30 fps film goes at an even 10 a second (MGU_HUD_FPS 10: every 3rd picture); packed
+ * blocks where the service offers them; asked no more, it goes off within 3 s; "hud off" at once.
  */
 #include <assert.h>
 #include <errno.h>
@@ -71,16 +72,19 @@ static void send_json(int fd, const char *j) {
 }
 
 /* the frame file: 1920x720, one slot, the picture in x 180..1740 */
+static unsigned char *g_map;
+static size_t g_len;
 static void make_frame_file(void) {
     const unsigned w = 1920, h = 720;
-    const size_t len = 64 + (size_t) w * h * 3 / 2;
+    g_len = 64 + (size_t) w * h * 3 / 2;
     int fd = open(g_frame_path, O_RDWR | O_CREAT | O_TRUNC, 0600);
-    assert(fd >= 0 && ftruncate(fd, (off_t) len) == 0);
-    unsigned char *m = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    assert(m != MAP_FAILED);
+    assert(fd >= 0 && ftruncate(fd, (off_t) g_len) == 0);
+    g_map = mmap(NULL, g_len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    assert(g_map != MAP_FAILED);
+    close(fd);
     uint32_t head[16] = { 0x4656474d, 1, w, h, 1, 0, 1, 1, 0 };
-    memcpy(m, head, sizeof head);
-    unsigned char *y = m + 64, *u = y + w * h, *v = u + (w / 2) * (h / 2);
+    memcpy(g_map, head, sizeof head);
+    unsigned char *y = g_map + 64, *u = y + w * h, *v = u + (w / 2) * (h / 2);
     for (unsigned r = 0; r < h; r++)
         for (unsigned c = 0; c < w; c++) y[r * w + c] = c >= 180 && c < 1740 ? 200 : 16;
     for (unsigned r = 0; r < h / 2; r++)
@@ -89,9 +93,32 @@ static void make_frame_file(void) {
             u[r * (w / 2) + c] = in ? 50 : 128;
             v[r * (w / 2) + c] = in ? 220 : 128;
         }
-    munmap(m, len);
-    close(fd);
 }
+/* a new picture: the header's seq + 1 */
+static void bump(void) { __atomic_add_fetch((uint32_t *) (g_map + 16), 1, __ATOMIC_RELEASE); }
+
+/* the next JSON message, F messages before it skipped (their count in *frames) */
+static char *next_json(int c, int *frames) {
+    char type;
+    unsigned char *body;
+    uint32_t len;
+    for (;;) {
+        assert(next_msg(c, &type, &body, &len, now() + 3) == 0);
+        if (type == 'J') return (char *) body;
+        if (frames) (*frames)++;
+        free(body);
+    }
+}
+
+static volatile int g_bumping;
+static void *bumper(void *arg) {
+    (void) arg;
+    while (g_bumping) { bump(); mgu_hud_want(1); usleep(33333); }
+    return NULL;
+}
+
+static double g_asked;
+static void want(void) { mgu_hud_want(1); g_asked = now(); }
 
 int main(void) {
     char dir[] = "/tmp/test_hud_XXXXXX";
@@ -111,42 +138,80 @@ int main(void) {
     struct pollfd pl = { ls, POLLIN, 0 };
     assert(poll(&pl, 1, 300) == 0);   /* not wanted: no connection */
 
-    const double asked_last = now();
-    mgu_hud_want(1);
+    want();
     assert(poll(&pl, 1, 2000) == 1);
     int c = accept(ls, NULL, NULL);
-    char type;
+    char type, *j;
     unsigned char *body;
     uint32_t len;
-    assert(next_msg(c, &type, &body, &len, now() + 2) == 0 && type == 'J' && strstr((char *) body, "\"op\":\"hello\""));
-    free(body);
+    j = next_json(c, NULL);
+    assert(strstr(j, "\"op\":\"hello\""));
+    free(j);
     send_json(c, "{\"ev\":\"hello\",\"proto\":1,\"backend\":\"id7\",\"targets\":\"map:1088x480,panel:1920x720,hud:800x480\",\"repeat\":1}");
-    assert(next_msg(c, &type, &body, &len, now() + 2) == 0 && type == 'J');
-    assert(strstr((char *) body, "\"op\":\"layer\"") && strstr((char *) body, "\"target\":\"hud\"") &&
-           strstr((char *) body, "\"vw\":800") && strstr((char *) body, "\"vh\":480"));
-    free(body);
+    /* the layer: the picture's shape, 1560x720 fitted into 800x480 = 800x368, centred */
+    j = next_json(c, NULL);
+    assert(strstr(j, "\"op\":\"layer\"") && strstr(j, "\"ref\":1,") && strstr(j, "\"target\":\"hud\"") && strstr(j, "\"vw\":800,\"vh\":368,\"x\":0,\"y\":56,\"w\":800,\"h\":368"));
+    assert(!strstr(j, "always_packed"));
+    free(j);
     send_json(c, "{\"ev\":\"layer\",\"ref\":1,\"state\":\"shown\"}");
-
-    /* the first frame: the whole atlas */
-    assert(next_msg(c, &type, &body, &len, now() + 2) == 0 && type == 'F');
-    assert(len == 14 + 800 * 480 * 3 / 2);
+    assert(next_msg(c, &type, &body, &len, now() + 2) == 0 && type == 'F' && len == 14 + 800 * 368 * 3 / 2);
     uint32_t ref;
     memcpy(&ref, body, 4);
     assert(ref == 1 && body[12] == 0 && body[13] == 0);
-    const unsigned char *y = body + 14, *ch = y + 800 * 480;
-    /* 1560x720 fitted into 800x480: 800x368 (even), from row 56 */
-    assert(y[10 * 800 + 400] == 16 && y[470 * 800 + 400] == 16);       /* the bars above and below */
-    assert(y[240 * 800 + 5] == 200 && y[240 * 800 + 795] == 200);      /* the picture edge to edge */
-    assert(y[57 * 800 + 400] == 200 && y[422 * 800 + 400] == 200);
-    assert(ch[120 * 800 + 200] == 50 && ch[120 * 800 + 400 + 200] == 220);   /* U, then V, side by side */
-    assert(ch[5 * 800 + 200] == 128 && ch[5 * 800 + 600] == 128);
+    const unsigned char *y = body + 14, *ch = y + 800 * 368;
+    assert(y[0] == 200 && y[800 * 368 - 1] == 200 && y[184 * 800 + 400] == 200);        /* only the picture */
+    assert(ch[0] == 50 && ch[400] == 220 && ch[183 * 800 + 399] == 50 && ch[183 * 800 + 799] == 220);   /* U | V */
     free(body);
-    printf("frame: 800x480 atlas, the picture fitted without its bars: ok\n");
+    printf("layer and frame: only the picture, 800x368 at 0,56: ok\n");
 
     /* the picture does not change: a repeat about once a second */
-    assert(next_msg(c, &type, &body, &len, now() + 2.5) == 0 && type == 'J' && strstr((char *) body, "\"op\":\"repeat\""));
-    free(body);
+    want();
+    j = next_json(c, NULL);
+    assert(strstr(j, "\"op\":\"repeat\",\"ref\":1"));
+    free(j);
     printf("repeat: ok\n");
+
+    /* half the size, right edge, top: the layer made again (the old one dropped) */
+    mgu_hud_layout(50, 100, 0, 1);
+    want();
+    bump();
+    j = next_json(c, NULL);
+    assert(strstr(j, "\"op\":\"drop\",\"ref\":1"));
+    free(j);
+    j = next_json(c, NULL);
+    assert(strstr(j, "\"ref\":2,") && strstr(j, "\"vw\":400,\"vh\":184,\"x\":400,\"y\":0"));
+    free(j);
+    assert(next_msg(c, &type, &body, &len, now() + 2) == 0 && type == 'F' && len == 14 + 400 * 184 * 3 / 2);
+    free(body);
+    /* the same size at the left edge, bottom: only moved */
+    mgu_hud_layout(50, 0, 100, 1);
+    want();
+    bump();
+    j = next_json(c, NULL);
+    assert(strstr(j, "\"op\":\"set\",\"ref\":2,\"x\":0,\"y\":296"));
+    free(j);
+    printf("size: made again; place: moved: ok\n");
+
+    /* a 30 fps film: an even 10 a second (every 3rd picture) */
+    g_bumping = 1;
+    pthread_t bt;
+    pthread_create(&bt, NULL, bumper, NULL);
+    double t0 = now();
+    int frames = 0;
+    while (now() - t0 < 1.5) {   /* the rate is measured first */
+        struct pollfd pf = { c, POLLIN, 0 };
+        if (poll(&pf, 1, 100) == 1) { assert(next_msg(c, &type, &body, &len, now() + 2) == 0); free(body); }
+    }
+    t0 = now();
+    while (now() - t0 < 2.0) {
+        struct pollfd pf = { c, POLLIN, 0 };
+        if (poll(&pf, 1, 100) == 1) { assert(next_msg(c, &type, &body, &len, now() + 2) == 0); if (type == 'F') frames++; free(body); }
+    }
+    g_bumping = 0;
+    pthread_join(bt, NULL);
+    want();
+    printf("30 fps film: %d frames in 2 s\n", frames);
+    assert(frames >= 18 && frames <= 22);
 
     /* asked no more: off 3 s after the last ask (the connection closes) */
     char buf[1 << 16];
@@ -155,17 +220,26 @@ int main(void) {
         assert(poll(&pf, 1, 5000) == 1);
         if (read(c, buf, sizeof buf) <= 0) break;
     }
-    const double off_after = now() - asked_last;
+    const double off_after = now() - g_asked;
     assert(off_after > 2.9 && off_after < 3.5);
     close(c);
     printf("off %.1f s after the last ask: ok\n", off_after);
 
-    /* "hud off" at once */
-    mgu_hud_want(1);
+    /* a service with packed blocks: the layer asks for them, its height a multiple of 4 */
+    mgu_hud_layout(100, 50, 50, 1);
+    want();
     assert(poll(&pl, 1, 3000) == 1);
     c = accept(ls, NULL, NULL);
-    assert(next_msg(c, &type, &body, &len, now() + 2) == 0);
-    free(body);
+    j = next_json(c, NULL);
+    free(j);
+    send_json(c, "{\"ev\":\"hello\",\"proto\":1,\"backend\":\"id7\",\"targets\":\"hud:800x480\",\"repeat\":1,\"always_packed\":1}");
+    bump();
+    j = next_json(c, NULL);
+    assert(strstr(j, "\"vw\":800,\"vh\":368,") && strstr(j, "\"always_packed\":1"));
+    free(j);
+    printf("packed blocks where offered: ok\n");
+
+    /* "hud off" at once */
     usleep(200000);
     const double t = now();
     mgu_hud_want(0);
@@ -182,6 +256,7 @@ int main(void) {
     assert(strstr(g_events, "\"state\":\"shown\"") && strstr(g_events, "\"state\":\"off\""));
     pthread_mutex_unlock(&g_mu);
     printf("events: ok\n");
+    munmap(g_map, g_len);
     unlink(g_frame_path);
     unlink(g_sock_path);
     rmdir(dir);

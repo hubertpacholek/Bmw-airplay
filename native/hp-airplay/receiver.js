@@ -318,11 +318,15 @@ function createReceiver(opts) {
         return true;
     }
 
-    /** the picture on the HUD: on (to be asked again within 3 s to stay on) or off; false when no receiver */
-    function hud(on) {
+    /** the picture on the HUD: on (to be asked again within 3 s to stay on) or off; with on, the layout
+     * { size (% of the HUD), x, y (% of the room left), packed } when given; false when no receiver */
+    function hud(on, lay) {
         const c = child;
         if (!c || !c.stdin || !c.stdin.writable) return false;
-        try { c.stdin.write(on ? 'hud on\n' : 'hud off\n'); } catch (e) { return false; }
+        const n = (v, d) => (Number.isFinite(Number(v)) ? Math.round(Number(v)) : d);
+        const line = !on ? 'hud off' : lay && lay.size != null
+            ? 'hud on ' + [n(lay.size, 100), n(lay.x, 50), n(lay.y, 50), lay.packed === false ? 0 : 1].join(' ') : 'hud on';
+        try { c.stdin.write(line + '\n'); } catch (e) { return false; }
         return true;
     }
 

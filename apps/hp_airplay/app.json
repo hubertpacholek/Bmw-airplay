@@ -2,7 +2,7 @@
   "id": "hp_airplay",
   "title": "AirPlay HP",
   "description": "The head unit as an AirPlay receiver for an iPhone: screen mirroring on the centre screen with the sound on the car's speakers (also with wireless CarPlay connected), and videos sent with the AirPlay button (YouTube) played by the head unit itself, with their controls on the iDrive. The picture shows while parked. Needs the AirPlay HP service.",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "language": "pl",
   "vendor": "custom",
   "loggingId": "OA9A",
@@ -27,7 +27,7 @@
     }
   },
   "requires": {
-    "hp-airplay": "1.5.0"
+    "hp-airplay": "1.6.0"
   },
   "screens": [
     {
@@ -72,6 +72,78 @@
       ]
     },
     {
+      "key": "hudSize",
+      "label": "HUD: wielkość obrazu (część wyświetlacza)",
+      "type": "number",
+      "unit": "%",
+      "default": 100,
+      "steps": [
+        100,
+        90,
+        80,
+        70,
+        60,
+        50,
+        40
+      ]
+    },
+    {
+      "key": "hudX",
+      "label": "HUD: położenie w poziomie (0 lewo, 50 środek, 100 prawo)",
+      "type": "number",
+      "unit": "%",
+      "default": 50,
+      "steps": [
+        0,
+        10,
+        20,
+        30,
+        40,
+        50,
+        60,
+        70,
+        80,
+        90,
+        100
+      ]
+    },
+    {
+      "key": "hudY",
+      "label": "HUD: położenie w pionie (0 góra, 50 środek, 100 dół)",
+      "type": "number",
+      "unit": "%",
+      "default": 50,
+      "steps": [
+        0,
+        10,
+        20,
+        30,
+        40,
+        50,
+        60,
+        70,
+        80,
+        90,
+        100
+      ]
+    },
+    {
+      "key": "hudQuality",
+      "label": "HUD: płynność albo ostrość obrazu",
+      "type": "choice",
+      "default": "smooth",
+      "options": [
+        [
+          "smooth",
+          "Płynny: lżejsze bloki, mniej zacinania"
+        ],
+        [
+          "sharp",
+          "Ostry: pełne piksele, może się zacinać"
+        ]
+      ]
+    },
+    {
       "key": "parkedOnly",
       "label": "Obraz na ekranie tylko na postoju (wyłączone: także w czasie jazdy, dla pasażera; kierowca nie może patrzeć)",
       "type": "bool",
@@ -85,23 +157,24 @@
     },
     {
       "key": "aspect",
-      "label": "Kształt filmu na ekranie (także przycisk na pasku filmu z YouTube)",
+      "label": "Film na ekranie: w swoich proporcjach albo powiększony na cały ekran (także przycisk na pasku filmu z YouTube)",
       "type": "choice",
-      "default": "fill",
+      "default": "fit",
       "options": [
         [
-          "fill",
-          "Wypełnij: cały ekran, brzegi przycięte"
+          "fit",
+          "Proporcje filmu: cały film widoczny"
         ],
         [
           "zoom",
-          "Powiększ: pośrodku"
+          "Powiększony: pomiędzy"
         ],
         [
-          "fit",
-          "Cały: cały film, czarne pasy"
+          "fill",
+          "Zoom na cały ekran: brzegi filmu przycięte"
         ]
-      ]
+      ],
+      "reset": 1
     },
     {
       "key": "videoButton",

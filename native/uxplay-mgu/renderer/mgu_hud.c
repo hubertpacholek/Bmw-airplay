@@ -7,14 +7,22 @@
  * on the HUD" lets it (only while parked, or also while driving: the HUD of the car it was made for is on the
  * passenger's side) and stops at once when it does not; if the app or the service stops asking, the HUD goes dark 3 s
  * later.
- * Wanted, a thread connects to cluster-render's socket (its group, tm_oap_app, is one of the receiver's), makes one
- * video layer on the target "hud" (800x480 on iDrive 7) and sends it the frame file's newest picture
- * (video/src/mgu_video.cpp's, read through a read-only mapping of its own), the letterbox bars left out (a film's
- * own too: video/src/film_bars.cpp), fitted into
- * the HUD, at most MGU_HUD_FPS (default 15, 1..30) times a second. A picture that does not change is repeated once
- * a second for 5 s (cluster-render stalls a video layer after 6 s without one), then the layer stalls and the HUD
- * goes back to the car's own until the next picture. Not wanted, the connection closes: the layer goes with it, and
- * cluster-render fades the HUD back after its linger.
+ * Wanted, a thread connects to cluster-render's socket (its group, tm_oap_app, is one of the receiver's) and sends
+ * the frame file's pictures (video/src/mgu_video.cpp's, read through a read-only mapping of its own) to one video
+ * layer on the target "hud" (800x480 on iDrive 7): the picture with the letterbox bars left out (a film's own too:
+ * video/src/film_bars.cpp), in its own shape, fitted into the share of the HUD the app's setting gives ("hud on SIZE
+ * X Y PACKED": SIZE % of it, placed at X % and Y % of the room left, 0 the left or top edge, 50 the middle). The layer
+ * is the film's size and no more, so only the film's pixels are sent; it is made again when that size changes and
+ * moved when only the place does.
+ *
+ * The link to the cluster carries 5.5 MB/s at most for every app; a whole 800x480 picture 15 times a second would be
+ * 8.6 MB/s, and cluster-render then sends what it can, unevenly. So every n-th picture of the film goes, n from its
+ * measured frame rate so they come evenly at MGU_HUD_FPS (default 15, 1..30) a second at most (24 or 30 fps: every
+ * 2nd, 60: every 4th), and with PACKED (the app's default) as cluster-render's packed 4x4 blocks, about a third of
+ * the bytes, where the service offers them (its hello's always_packed). A picture that does not change is repeated
+ * once a second for 5 s (cluster-render stalls a video layer after 6 s without one), then the layer stalls and the
+ * HUD goes back to the car's own until the next picture. Not wanted, the connection closes: the layer goes with it,
+ * and cluster-render fades the HUD back after its linger.
  *
  * Events, when they change: {"ev":"hud","state":"off|connecting|waiting|shown|unavailable|error","reason":"..."}.
  */
@@ -41,12 +49,13 @@
 #define RETRY_NS (2000 * MS)
 #define REPEAT_NS (1000 * MS)
 #define REPEAT_FOR_NS (5000 * MS)
-#define LAYER 1
 #define MGVF_MAGIC 0x4656474du
 
 static const char *g_sock = "/dev/shm/cluster-render/render.sock";
 static void (*g_emit)(const char *json);
 static volatile int64_t g_want_at;   /* the last "hud on", CLOCK_MONOTONIC ns; 0: not wanted */
+/* the app's layout: size (% of the HUD), place (% of the room left), packed blocks */
+static volatile int g_size = 100, g_x = 50, g_y = 50, g_packed = 1;
 static pthread_once_t g_once = PTHREAD_ONCE_INIT;
 
 static int64_t now_ns(void) {
@@ -103,7 +112,10 @@ static long jnum(const char *j, const char *key, long def) {
 
 static int g_fd = -1;
 static unsigned g_hw, g_hh;          /* the HUD target's frame size, from the service's hello */
-static int g_layer, g_can_repeat;
+static int g_can_repeat, g_can_pack;
+/* the layer now: its ref (0 none), frame size, place, packed */
+static unsigned g_ref, g_lw, g_lh, g_lx, g_ly;
+static int g_lpacked;
 static unsigned char g_in[1 << 16];
 static size_t g_in_len;
 
@@ -111,7 +123,8 @@ static void disconnect(void) {
     if (g_fd >= 0) close(g_fd);
     g_fd = -1;
     g_hw = g_hh = 0;
-    g_layer = g_can_repeat = 0;
+    g_can_repeat = g_can_pack = 0;
+    g_ref = g_lw = g_lh = g_lx = g_ly = 0;
     g_in_len = 0;
 }
 
@@ -172,7 +185,8 @@ static void on_event(const char *j) {
         }
         g_hw = w & ~3u, g_hh = hh & ~1u;   /* a video frame: width a multiple of 4, height even */
         g_can_repeat = jnum(j, "repeat", 0) == 1;
-    } else if (!strcmp(ev, "layer") && jnum(j, "ref", 0) == LAYER) {
+        g_can_pack = jnum(j, "always_packed", 0) == 1;
+    } else if (!strcmp(ev, "layer") && g_ref && jnum(j, "ref", 0) == (long) g_ref) {
         jstr(j, "state", s, sizeof s);
         if (!strcmp(s, "shown")) set_state("shown", "");
         else if (!strcmp(s, "error")) set_state("error", reason);
@@ -283,6 +297,8 @@ static void to_atlas(const unsigned char *frame, unsigned fw, unsigned fh, unsig
     if ((uint64_t) pw * h > (uint64_t) ph * w) { ow = w; oh = (unsigned) ((uint64_t) ph * w / pw) & ~1u; }
     else { oh = h; ow = (unsigned) ((uint64_t) pw * h / ph) & ~1u; }
     if (ow < 2 || oh < 2) return;
+    /* the layer is made in the picture's shape: what rounding leaves (a few pixels) is the picture's too */
+    if (w - ow <= w / 100 + 4 && h - oh <= h / 100 + 4) ow = w, oh = h;
     const unsigned ox = (w - ow) / 2 & ~1u, oy = (h - oh) / 2 & ~1u;
     const unsigned char *u = frame + (size_t) fw * fh, *v = u + (size_t) (fw / 2) * (fh / 2);
     box_scale(frame, fw, px, py, pw, ph, atlas, w, ox, oy, ow, oh);
@@ -293,15 +309,17 @@ static void to_atlas(const unsigned char *frame, unsigned fw, unsigned fh, unsig
 
 /* ---------------- the thread ---------------- */
 
+static int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
+
 static void *hud_thread(void *arg) {
     (void) arg;
     const char *e = getenv("MGU_HUD_FPS");
-    int fps = e && atoi(e) > 0 ? atoi(e) : 15;
-    if (fps > 30) fps = 30;
-    const int64_t period = 1000000000LL / fps;
-    int64_t next_try = 0, last_sent = 0, last_new = 0;
-    uint32_t last_seq = 0;
+    const int cap = e && atoi(e) > 0 ? clampi(atoi(e), 1, 30) : 15;
+    int64_t next_try = 0, last_sent = 0, last_new = 0, rate_at = 0;
+    uint32_t last_seq = 0, rate_seq = 0;
+    double src_fps = 0;
     uint64_t frame_id = 0;
+    unsigned next_ref = 0;
     unsigned char *atlas = NULL;
     size_t atlas_len = 0;
     set_state("off", "");
@@ -311,6 +329,7 @@ static void *hud_thread(void *arg) {
             if (g_fd >= 0) disconnect();
             unmap();
             set_state("off", "");
+            rate_at = 0;
             usleep(100000);
             continue;
         }
@@ -329,22 +348,20 @@ static void *hud_thread(void *arg) {
             if (send_json("{\"op\":\"hello\",\"app\":\"hp-airplay\",\"proto\":1}")) continue;
         }
         struct pollfd p = { g_fd, POLLIN, 0 };
-        if (poll(&p, 1, 20) > 0) read_events();
-        if (g_fd < 0) continue;
-        if (g_hw && !g_layer) {
-            char j[256];
-            snprintf(j, sizeof j, "{\"op\":\"layer\",\"ref\":%d,\"target\":\"hud\",\"kind\":\"video\",\"vw\":%u,\"vh\":%u,\"fps\":%d}",
-                     LAYER, g_hw, g_hh, fps);
-            if (send_json(j)) continue;
-            g_layer = 1;
-            set_state("waiting", "no picture yet");
-            const size_t n = (size_t) g_hw * g_hh * 3 / 2;
-            if (n > atlas_len) { free(atlas); atlas = malloc(n); atlas_len = atlas ? n : 0; }
-        }
-        if (!g_layer || !atlas || now_ns() - last_sent < period) continue;
+        if (poll(&p, 1, 5) > 0) read_events();
+        if (g_fd < 0 || !g_hw) continue;
         const struct mgvf_head *h = frame_file();
         const uint32_t seq = h ? __atomic_load_n(&h->seq, __ATOMIC_ACQUIRE) : 0;
-        if (h && seq && seq != last_seq) {
+        const int64_t now = now_ns();
+        /* the film's frame rate, measured each second; every n-th picture goes, so they come evenly */
+        if (!rate_at || seq < rate_seq) rate_at = now, rate_seq = seq;   /* a new frame file counts from 0 */
+        else if (now - rate_at >= 1000 * MS) {
+            src_fps = (double) (uint32_t) (seq - rate_seq) * 1e9 / (double) (now - rate_at);
+            rate_at = now, rate_seq = seq;
+        }
+        unsigned n = src_fps > cap ? (unsigned) (src_fps / cap + 0.5) : 1;
+        if (!n) n = 1;
+        if (h && seq && seq != last_seq && (!last_seq || (uint32_t) (seq - last_seq) >= n)) {
             const uint32_t slot = __atomic_load_n(&h->slot, __ATOMIC_ACQUIRE) % h->nslot, fw = h->w, fh = h->h;
             const unsigned char *frame = g_map + sizeof *h + (size_t) slot * fw * fh * 3 / 2;
             unsigned px = 0, py = 0, pw = 0, ph = 0;
@@ -352,19 +369,51 @@ static void *hud_thread(void *arg) {
             if (!pw || !ph) mgu_video_picture(&px, &py, &pw, &ph);   /* else the picture */
             if (!pw || !ph || px + pw > fw || py + ph > fh) px = py = 0, pw = fw, ph = fh;
             px &= ~1u, py &= ~1u, pw &= ~1u, ph &= ~1u;
-            to_atlas(frame, fw, fh, px, py, pw, ph, atlas, g_hw, g_hh);
+            /* the layer: the film's shape fitted into SIZE % of the HUD, placed at X %, Y % of the room left */
+            const int packed = g_packed && g_can_pack;
+            const unsigned size = (unsigned) clampi(g_size, 20, 100), bw = g_hw * size / 100, bh = g_hh * size / 100;
+            unsigned vw, vh;
+            if ((uint64_t) pw * bh > (uint64_t) ph * bw) { vw = bw; vh = (unsigned) ((uint64_t) ph * bw / pw); }
+            else { vh = bh; vw = (unsigned) ((uint64_t) pw * bh / ph); }
+            vw &= ~3u;                        /* a video frame: width a multiple of 4, */
+            vh &= packed ? ~3u : ~1u;         /* height even (a multiple of 4 packed) */
+            if (vw < 16 || vh < 16) { last_seq = seq; continue; }
+            const unsigned lx = (g_hw - vw) * (unsigned) clampi(g_x, 0, 100) / 100 & ~1u;
+            const unsigned ly = (g_hh - vh) * (unsigned) clampi(g_y, 0, 100) / 100 & ~1u;
+            char j[320];
+            if (!g_ref || vw != g_lw || vh != g_lh || packed != g_lpacked) {
+                if (g_ref) {
+                    snprintf(j, sizeof j, "{\"op\":\"drop\",\"ref\":%u}", g_ref);
+                    if (send_json(j)) continue;
+                }
+                g_ref = ++next_ref;
+                snprintf(j, sizeof j, "{\"op\":\"layer\",\"ref\":%u,\"target\":\"hud\",\"kind\":\"video\",\"vw\":%u,\"vh\":%u,"
+                         "\"x\":%u,\"y\":%u,\"w\":%u,\"h\":%u,\"fps\":%d%s}",
+                         g_ref, vw, vh, lx, ly, vw, vh, cap, packed ? ",\"always_packed\":1" : "");
+                if (send_json(j)) continue;
+                g_lw = vw, g_lh = vh, g_lx = lx, g_ly = ly, g_lpacked = packed;
+                const size_t need = (size_t) vw * vh * 3 / 2;
+                if (need > atlas_len) { free(atlas); atlas = malloc(need); atlas_len = atlas ? need : 0; }
+                if (strcmp(g_state, "shown")) set_state("waiting", "no picture yet");
+            } else if (lx != g_lx || ly != g_ly) {
+                snprintf(j, sizeof j, "{\"op\":\"set\",\"ref\":%u,\"x\":%u,\"y\":%u}", g_ref, lx, ly);
+                if (send_json(j)) continue;
+                g_lx = lx, g_ly = ly;
+            }
+            if (!atlas) continue;
+            to_atlas(frame, fw, fh, px, py, pw, ph, atlas, vw, vh);
             unsigned char head[14];
-            const uint32_t ref = LAYER;
+            const uint32_t ref = g_ref;
             const uint64_t id = ++frame_id;
             memcpy(head, &ref, 4);       /* little-endian, as the head unit */
             memcpy(head + 4, &id, 8);
             head[12] = head[13] = 0;     /* no rects: the whole atlas */
-            if (send_msg('F', head, sizeof head, atlas, (size_t) g_hw * g_hh * 3 / 2)) continue;
+            if (send_msg('F', head, sizeof head, atlas, (size_t) vw * vh * 3 / 2)) continue;
             last_seq = seq;
             last_sent = last_new = now_ns();
-        } else if (g_can_repeat && last_new && now_ns() - last_sent >= REPEAT_NS && now_ns() - last_new < REPEAT_FOR_NS) {
+        } else if (g_ref && g_can_repeat && last_new && now - last_sent >= REPEAT_NS && now - last_new < REPEAT_FOR_NS) {
             char j[64];
-            snprintf(j, sizeof j, "{\"op\":\"repeat\",\"ref\":%d}", LAYER);
+            snprintf(j, sizeof j, "{\"op\":\"repeat\",\"ref\":%u}", g_ref);
             if (send_json(j)) continue;
             last_sent = now_ns();
         }
@@ -385,3 +434,7 @@ void mgu_hud_init(void (*emit_json)(const char *json)) {
 }
 
 void mgu_hud_want(int on) { g_want_at = on ? now_ns() : 0; }
+
+void mgu_hud_layout(int size, int x, int y, int packed) {
+    g_size = clampi(size, 20, 100), g_x = clampi(x, 0, 100), g_y = clampi(y, 0, 100), g_packed = packed != 0;
+}

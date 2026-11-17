@@ -9,8 +9,8 @@ Oparte na **myAirPlay** z [aurelmarius/bmw-apps](https://github.com/aurelmarius/
 wyrównujący** dla odbicia lustrzanego ekranu. Obraz i dźwięk idą według sygnatur czasu
 iPhone'a, 200 ms po najszybszych pakietach, więc nierówne Wi-Fi nie powoduje przycinek w
 filmach (`native/uxplay-mgu/README.md`, „The jitter buffer”). Film przy odbiciu lustrzanym
-wypełnia ekran bez swoich czarnych pasów (ustawienie „Film na cały ekran”: odbiornik znajduje pasy,
-`native/uxplay-mgu/video/src/film_bars.cpp`). Opcjonalnie obraz także na HUD (ustawienie „Obraz na HUD”:
+pokazuje się bez swoich czarnych pasów, w swoich proporcjach albo powiększony na cały ekran (ustawienia
+„Film na cały ekran” i „Film na ekranie”: odbiornik znajduje pasy, `native/uxplay-mgu/video/src/film_bars.cpp`). Opcjonalnie obraz także na HUD, z wyborem wielkości i położenia (ustawienia „Obraz na HUD”:
 wyłączony, tylko na postoju albo także w czasie jazdy, bo w aucie, dla którego powstała ta aplikacja, HUD
 jest przeniesiony na stronę pasażera; wymaga **cluster-render** ze Store, ze źródła `robertnisipeanu/idrive-apps`).
 

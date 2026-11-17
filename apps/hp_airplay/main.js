@@ -38,7 +38,7 @@ const MINUTES = 60;
 const EXTEND_BELOW_MS = 10 * 60000;
 // the service version this app is built with: an older one still running (its files were updated, the
 // process not) is asked to end, and the socket starts the new one at the next request
-const SERVICE_VERSION = '1.5.0';
+const SERVICE_VERSION = '1.6.0';
 const older = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 const GREEN = '#2fd27a', AMBER = '#ffb020', RED = '#ef2b2d';
 
@@ -243,7 +243,7 @@ mgu.run({
         /* ---------- a played video's controls (controls.js) and shape: fit, zoom, fill ---------- */
         // the video plays at its own size in the frame file (the player's decoder: stage 4), placed here
         const ASPECTS = ['fit', 'zoom', 'fill'];
-        const aspect = () => (ASPECTS.indexOf(ctx.settings.get('aspect')) >= 0 ? ctx.settings.get('aspect') : 'fill');
+        const aspect = () => (ASPECTS.indexOf(ctx.settings.get('aspect')) >= 0 ? ctx.settings.get('aspect') : 'fit');
         const hlsOf = () => { const r = st && st.mode === 'receiver' && st.active ? st.rx : null; return r && r.hls && r.hls.open && !r.hls.ended ? r.hls : null; };
         const videoOn = () => !!hlsOf();
         // the position between two statuses (one a second): on from the last one while it plays
@@ -322,7 +322,10 @@ mgu.run({
             const hudWant = hudMode() !== 'off' && picture && !hudDriving();
             if (hudWant || hudAsked) {
                 hudAsked = hudWant;
-                ask('hud', { on: hudWant }).then((r) => { if (r) st = r; });
+                // its size (% of the HUD) and place (% of the room left), and cluster-render's lighter packed blocks
+                const num = (k, d) => (typeof ctx.settings.get(k) === 'number' ? ctx.settings.get(k) : d);
+                ask('hud', { on: hudWant, size: num('hudSize', 100), x: num('hudX', 50), y: num('hudY', 50),
+                    packed: ctx.settings.get('hudQuality') !== 'sharp' }).then((r) => { if (r) st = r; });
             }
             if (shown()) { goneAt = 0; ended = false; return; }
             if (!rxOn || !rxOn.client || ended || ctx.settings.get('endOnLeave') === false) return;
