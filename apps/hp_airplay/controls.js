@@ -20,7 +20,7 @@
 const ALL_BUTTONS = ['back10', 'playpause', 'stop', 'fwd30', 'aspect', 'exit'];
 const SHOW_MS = 5000;
 const TILT = { 1: 'N', 2: 'N', 4: 'E', 5: 'E', 7: 'S', 8: 'S', 10: 'W', 11: 'W' };
-const ASPECT_NAME = { fit: 'FIT', zoom: 'ZOOM', fill: 'FILL' };
+const ASPECT_NAME = { fit: 'CAŁY', zoom: 'ZOOM', fill: 'PEŁNY' };
 
 const hms = (s) => {
     s = Math.max(0, Math.round(s || 0));
@@ -136,7 +136,7 @@ function createControls(o) {
             const label = (t) => rec.text(t, cx, cy + fs * 0.36, Math.round(fs * 0.95), white, { align: 'center', font: 'bold', literal: true });
             if (q.id === 'back10') label('-10s');
             else if (q.id === 'fwd30') label('+30s');
-            else if (q.id === 'aspect') label(ASPECT_NAME[i.aspect] || 'FIT');
+            else if (q.id === 'aspect') label(ASPECT_NAME[i.aspect] || 'CAŁY');
             else if (q.id === 'stop') rec.fillRect(cx - s, cy - s, 2 * s, 2 * s, white);
             else if (q.id === 'exit') { rec.line(cx - s, cy - s, cx + s, cy + s, 5, white); rec.line(cx - s, cy + s, cx + s, cy - s, 5, white); }
             else if (q.id === 'playpause') {

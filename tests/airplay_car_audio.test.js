@@ -120,7 +120,7 @@ test('a refused connect is reported', async () => {
     a.want(true);
     await settle();
     assert.strictEqual(a.state().connected, false);
-    assert.ok(/connect refused/.test(a.state().error));
+    assert.ok(/połączenie odrzucone/.test(a.state().error));
 });
 
 (async () => {

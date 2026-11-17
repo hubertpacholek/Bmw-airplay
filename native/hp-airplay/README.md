@@ -180,8 +180,9 @@ What the Store's tools learned the hard way (mgu-store, waze-on-cluster), and ho
 
 Control: one JSON object per line on the socket, `{"cmd":"status"}`, `{"cmd":"start","minutes":15}` (`"mode":"receiver"`,
 `"hls":true` for the receiver with the video button),
-`{"cmd":"hud","on":true|false}` (the picture on the head-up display: the app asks each second while the car is
-parked, and the receiver takes it off 3 s after the last ask; its state is the status's `rx.hud`),
+`{"cmd":"hud","on":true|false}` (the picture on the head-up display: the app asks each second while the picture may
+show, by its setting "Picture only while parked" as the screen, and the receiver takes it off 3 s after the last ask;
+its state is the status's `rx.hud`),
 `{"cmd":"stop"}`, `{"cmd":"exit"}`; the reply is the status. The last test's status is kept in
 `/var/opt/hp-airplay/state/last-report.json` (every 30 s while it runs, and at its end).
 

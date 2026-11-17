@@ -35,7 +35,7 @@ const rxm = require('./receiver');
 const sockgroup = require('./sockgroup');
 const { fork } = require('child_process');
 
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 const MDNS_GROUP = '224.0.0.251';
 const QUERY_NAMES = ['_airplay._tcp.local', '_raop._tcp.local', '_companion-link._tcp.local', '_apple-mobdev2._tcp.local'];
 
@@ -568,7 +568,7 @@ function createProbe(opts) {
         if (st.active && st.mode === 'receiver') rx.control(op, to);
         return status();
     }
-    /** the picture on the HUD: the app asks for it each second while the car is parked, and it goes off by itself 3 s
+    /** the picture on the HUD: the app asks for it each second while the picture may show, and it goes off by itself 3 s
      * after the last ask (renderer/mgu_hud.c) */
     function hud(on) {
         if (st.active && st.mode === 'receiver') rx.hud(!!on);

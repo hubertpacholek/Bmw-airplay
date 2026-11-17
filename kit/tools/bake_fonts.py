@@ -15,7 +15,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, '..', 'runtime', 'fonts')
 FONTDIR = '/usr/share/fonts/truetype/ubuntu'
 
-TEXT = ''.join(chr(c) for c in range(32, 127)) + '°μ│·–—…×±²³€↑↓→←✓✕'
+TEXT = ''.join(chr(c) for c in range(32, 127)) + '°μ│·–—…×±²³€↑↓→←✓✕' + 'ąćęłńóśźżĄĆĘŁŃÓŚŹŻ„”'
 DIGITS = '0123456789.,:-+%°/ ' + 'kmhKMHrpmbarpsiVNCFgsxµRPDSWLOT'
 GEAR = '0123456789NRPDSM-'
 

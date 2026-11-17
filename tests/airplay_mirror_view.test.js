@@ -43,7 +43,7 @@ test('shown while parked, the page up and pictures coming: the file named, grabb
     v.update({ rx: rx(), pageVisible: true, driving: false });
     assert.deepStrictEqual(gpu.calls, ['video 1 /dev/shm/mgu-video-hp-airplay', 'claim 1', 'grab true', 'show true', 'frame']);
     assert.strictEqual(v.state().shown, true);
-    assert.strictEqual(v.state().why, 'on the screen');
+    assert.strictEqual(v.state().why, 'na ekranie');
     const w = gpu.lastRec.words();
     assert.ok(Array.prototype.indexOf.call(w, record.OP.VIDEO) >= 0);
     // the hint is over the picture at first (text drawn), then gone
@@ -65,10 +65,10 @@ test('hidden while driving, and when the app is not in front', () => {
     v.update({ rx: rx(), pageVisible: true, driving: true });
     // hidden: no touch claimed, the controller let go (the HMI gets them all: CarPlay's tile)
     assert.deepStrictEqual(gpu.calls, ['video 1 null', 'claim 0', 'grab false', 'show false']);
-    assert.strictEqual(v.state().why, 'hidden while driving');
+    assert.strictEqual(v.state().why, 'ukryty w czasie jazdy');
     v.update({ rx: rx(), pageVisible: false, driving: false });
     assert.strictEqual(v.state().shown, false);
-    assert.strictEqual(v.state().why, 'the app is not in front');
+    assert.strictEqual(v.state().why, 'aplikacja nie jest na wierzchu');
 });
 
 test('a tap does nothing; the controller hides it; "Start receiver" (wantAgain) shows it again', () => {
@@ -80,7 +80,7 @@ test('a tap does nothing; the controller hides it; "Start receiver" (wantAgain) 
     assert.strictEqual(v.state().shown, false);
     v.update({ rx: rx(), pageVisible: true, driving: false });
     assert.strictEqual(v.state().shown, false);
-    assert.ok(/Start receiver/.test(v.state().why));
+    assert.ok(/Włącz AirPlay/.test(v.state().why));
     v.wantAgain();
     v.update({ rx: rx(), pageVisible: true, driving: false });
     assert.strictEqual(v.state().shown, true);
@@ -92,9 +92,9 @@ test('nothing without pictures, a failed decoder, or a missing frame file; a new
     let ino = 42;
     const { v, gpu } = setup(() => { if (ino === null) throw new Error('ENOENT'); return ino; });
     v.update({ rx: rx({ stream: { shown: 0 } }), pageVisible: true, driving: false });
-    assert.strictEqual(v.state().why, 'waiting for the picture');
+    assert.strictEqual(v.state().why, 'czekam na obraz');
     v.update({ rx: rx({ decoder: { ok: false, error: 'decoder: no render node' } }), pageVisible: true, driving: false });
-    assert.ok(/GPU decoder failed: decoder: no render node/.test(v.state().why));
+    assert.ok(/dekoder GPU zawiódł: decoder: no render node/.test(v.state().why));
     assert.deepStrictEqual(gpu.calls, []);
     v.update({ rx: rx(), pageVisible: true, driving: false });
     assert.strictEqual(v.state().shown, true);
@@ -104,7 +104,7 @@ test('nothing without pictures, a failed decoder, or a missing frame file; a new
     ino = null;
     v.update({ rx: rx(), pageVisible: true, driving: false });
     assert.strictEqual(v.state().shown, false);
-    assert.strictEqual(v.state().why, 'the frame file is missing');
+    assert.strictEqual(v.state().why, 'brak pliku klatek');
 });
 
 test('a renderer without mgu-render/1: never shown', () => {

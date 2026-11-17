@@ -32,11 +32,11 @@ function createMirrorView(o) {
     const log = o.log || { info() {}, warn() {} };
     const now = o.now || Date.now;
     const gpu = new o.RenderClient(o.appId, log, { kit: o.kit });
-    let shown = false, ino = null, path = null, rec = null, lastFrame = 0, userHid = false, why = 'not started', ready = false;
+    let shown = false, ino = null, path = null, rec = null, lastFrame = 0, userHid = false, why = 'nie uruchomiony', ready = false;
     let lastPress = 0, lastTilt = 0;
 
     gpu.on('ready', (screen, info) => {
-        if (!info) { why = 'the renderer does not show videos (mgu-render/1 needed)'; ready = false; return; }
+        if (!info) { why = 'renderer nie pokazuje wideo (potrzebny mgu-render/1)'; ready = false; return; }
         ready = true;
         gpu.mode('layer');
         gpu.place({ x: 0, y: 0, w: screen.w, h: screen.h, scale: 1, ox: 0, oy: 0 });
@@ -79,7 +79,7 @@ function createMirrorView(o) {
             if (ov && ov.draw) ov.draw(rec, pl, hint);
             if (hint) {
                 rec.roundRect(pl.w / 2 - 330, pl.h - 96, 660, 60, 30, 0x000000b0);
-                rec.text(o.hintText || 'Press a button on the iDrive controller to return', pl.w / 2, pl.h - 56, 26, 0xffffffff, { align: 'center', font: 'bold', literal: true });
+                rec.text(o.hintText || 'Naciśnij przycisk kontrolera iDrive, by wrócić', pl.w / 2, pl.h - 56, 26, 0xffffffff, { align: 'center', font: 'bold', literal: true });
             }
             hinted = hint;
             overKey = ok;
@@ -113,20 +113,20 @@ function createMirrorView(o) {
     function update(s) {
         const rx = s.rx || null, dec = rx && rx.decoder;
         const pictures = !!(rx && rx.running && dec && dec.ok && rx.stream && rx.stream.shown > 0 && rx.videoRunning);
-        if (!rx || !rx.running) why = o.idleText || 'the receiver is not running';
-        else if (dec && !dec.ok) why = 'the GPU decoder failed: ' + dec.error;
-        else if (!pictures) why = 'waiting for the picture';
-        else if (s.driving) why = 'hidden while driving';
-        else if (!s.pageVisible) why = 'the app is not in front';
-        else if (!ready || !gpu.placement) why = 'waiting for mgu-render';
-        else if (userHid) why = o.hiddenText || 'hidden: press "Start receiver" to show it again';
-        else why = 'on the screen';
+        if (!rx || !rx.running) why = o.idleText || 'odbiornik nie działa';
+        else if (dec && !dec.ok) why = 'dekoder GPU zawiódł: ' + dec.error;
+        else if (!pictures) why = 'czekam na obraz';
+        else if (s.driving) why = 'ukryty w czasie jazdy';
+        else if (!s.pageVisible) why = 'aplikacja nie jest na wierzchu';
+        else if (!ready || !gpu.placement) why = 'czekam na mgu-render';
+        else if (userHid) why = o.hiddenText || 'ukryty: naciśnij „Włącz AirPlay”, by go pokazać';
+        else why = 'na ekranie';
         // Emby: between two streams (a seek is a new player, and its frame file a new one) the picture stays up,
         // black with the overlay, while o.hold() says a film is still on (0.3.4 in the car: the status page flashed)
         const canShow = !s.driving && !!s.pageVisible && ready && !!gpu.placement && !userHid;
         const hold = () => {
             if (ino !== null) { gpu.video(VID, null); ino = null; }
-            why = o.holdText || 'loading';
+            why = o.holdText || 'wczytywanie';
             if (now() - lastFrame >= KEEPALIVE_MS) frame();
             if (o.onTouch && gpu.placement) gpu.claim([{ x: 0, y: 0, w: gpu.placement.w, h: gpu.placement.h }]);
         };
@@ -138,7 +138,7 @@ function createMirrorView(o) {
             let cur = null;
             try { const st = o.statIno(path); cur = st; } catch (e) { cur = null; }
             if (cur === null && shown && o.hold && o.hold()) return hold();
-            if (cur === null) { apply(false); why = 'the frame file is missing'; return; }
+            if (cur === null) { apply(false); why = 'brak pliku klatek'; return; }
             // a new frame file (the decoder opened it again): named again
             if (ino !== null && cur !== ino) gpu.video(VID, null);
             if (cur !== ino) gpu.video(VID, path);

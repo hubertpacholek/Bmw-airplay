@@ -1,16 +1,17 @@
 # AirPlay HP
 
 Odbiornik AirPlay dla iDrive 7 (MGU): odbicie lustrzane ekranu iPhone'a na środkowym
-ekranie, z dźwiękiem w głośnikach auta. Obraz tylko na postoju. Instaluje się ze
-[Store](https://github.com/robertnisipeanu/mgu-store).
+ekranie, z dźwiękiem w głośnikach auta. Obraz domyślnie tylko na postoju. Aplikacja jest po
+polsku. Instaluje się ze [Store](https://github.com/robertnisipeanu/mgu-store).
 
 Oparte na **myAirPlay** z [aurelmarius/bmw-apps](https://github.com/aurelmarius/bmw-apps)
 (historia zmian tych plików jest zachowana w tym repozytorium). Różnica: **bufor
 wyrównujący** dla odbicia lustrzanego ekranu. Obraz i dźwięk idą według sygnatur czasu
 iPhone'a, 200 ms po najszybszych pakietach, więc nierówne Wi-Fi nie powoduje przycinek w
-filmach (`native/uxplay-mgu/README.md`, „The jitter buffer”). Opcjonalnie obraz także na HUD, tylko na
-postoju (ustawienie „Picture on the head-up display too”; wymaga **cluster-render** ze Store, ze źródła
-`robertnisipeanu/idrive-apps`).
+filmach (`native/uxplay-mgu/README.md`, „The jitter buffer”). Opcjonalnie obraz także na HUD
+(ustawienie „Obraz na HUD”; wymaga **cluster-render** ze Store, ze źródła `robertnisipeanu/idrive-apps`).
+HUD działa jak ekran, według ustawienia „Obraz tylko na postoju”: w aucie, dla którego powstała ta
+aplikacja, HUD jest przeniesiony na stronę pasażera.
 
 ## Instalacja
 

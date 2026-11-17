@@ -3,8 +3,9 @@
  * mgu_hud.c - the picture on the head-up display, through cluster-render (robertnisipeanu/idrive-apps,
  * native/cluster-render: PROTOCOL.md, version 1).
  *
- * Only while wanted: "hud on" on stdin, again at least every 3 s. The app asks each second while the car is parked
- * and stops at once when it moves; if the app or the service stops asking, the HUD goes dark by itself 3 s later.
+ * Only while wanted: "hud on" on stdin, again at least every 3 s. The app asks each second while the picture may show
+ * (its setting "Picture only while parked", as for the screen: the HUD of the car it was made for is on the passenger's
+ * side) and stops at once when it may not; if the app or the service stops asking, the HUD goes dark 3 s later.
  * Wanted, a thread connects to cluster-render's socket (its group, tm_oap_app, is one of the receiver's), makes one
  * video layer on the target "hud" (800x480 on iDrive 7) and sends it the frame file's newest picture
  * (video/src/mgu_video.cpp's, read through a read-only mapping of its own), the letterbox bars left out, fitted into

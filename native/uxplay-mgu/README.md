@@ -25,7 +25,7 @@ on stdin changes the delay; the stats carry `jms`, `vq` / `aq` (waiting), `vlate
 after they were due), `aqdrop` (late sound dropped) and `agaps` (every gap in the sound; the app shows it).
 
 **The HUD** (`renderer/mgu_hud.c`): while the service asks for it (`hud on` on stdin, again at least every 3 s; the
-app asks each second while the car is parked), a thread connects to cluster-render
+app asks each second while the picture may show: by "Picture only while parked", as the screen), a thread connects to cluster-render
 ([robertnisipeanu/idrive-apps](https://github.com/robertnisipeanu/idrive-apps) `native/cluster-render`, its socket's
 group `tm_oap_app` is one of the receiver's), makes one video layer on its target `hud` (800x480 on iDrive 7), and sends
 it the frame file's newest picture, the letterbox bars left out (the decoder says where the picture is), fitted by an

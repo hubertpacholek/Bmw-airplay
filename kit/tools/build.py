@@ -369,7 +369,15 @@ def build_start_widget(spec, app_id, icon_src, out):
 
 def build(app_id, language='en'):
     spec = json.load(open(os.path.join(APPS, app_id, 'app.json'), encoding='utf-8'))
-    spec = localize_spec(spec, language)
+    # an app written in one language ("language" in app.json, its texts already in it): the kit's own texts in that
+    # language too (kit/runtime/locales), the version as it is
+    if language == 'en' and spec.get('language', 'en') != 'en':
+        language = spec['language']
+        version = spec['version']
+        spec = localize_spec(spec, language)
+        spec['version'] = version
+    else:
+        spec = localize_spec(spec, language)
     spec.setdefault('id', app_id)
     ver = spec['version']
     stage = os.path.join(DIST, app_id)

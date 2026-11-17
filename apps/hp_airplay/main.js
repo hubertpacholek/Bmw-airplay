@@ -9,10 +9,14 @@
  *                     internet (mgu-uplink), with its controls on the iDrive (controls.js); iOS plays it this way
  *                     only while the iPhone is not in a CarPlay session (setting "AirPlay video button", on).
  * The picture shows while the car is parked (setting "Picture only while parked", on), over the whole screen
- * (mirror_view.js); the iDrive controller's buttons hide a mirrored screen, "Start AirPlay" shows it again.
+ * (mirror_view.js), and on the HUD too (setting "Picture on the HUD", off; this car's HUD is moved to the passenger's
+ * side) by the same setting; the iDrive controller's buttons hide a mirrored screen, "Start AirPlay" shows it again.
  *
  * The receiver runs in the service (native/hp-airplay, a root tool) from "Start AirPlay" for an hour, longer
  * while an iPhone uses it; the app talks to it over /run/hp-airplay.sock (a JSON object per line).
+ *
+ * The page's texts are Polish (app.json "language": "pl" gives the kit's own texts in Polish too); the log stays
+ * English.
  */
 const net = require('net');
 const mgu = require('./kit/mgu');
@@ -33,7 +37,7 @@ const MINUTES = 60;
 const EXTEND_BELOW_MS = 10 * 60000;
 // the service version this app is built with: an older one still running (its files were updated, the
 // process not) is asked to end, and the socket starts the new one at the next request
-const SERVICE_VERSION = '1.3.0';
+const SERVICE_VERSION = '1.4.0';
 const older = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 const GREEN = '#2fd27a', AMBER = '#ffb020', RED = '#ef2b2d';
 
@@ -64,7 +68,20 @@ function clip(cv, s, size, w, font) {
 }
 const hms = (x) => { x = Math.max(0, Math.round(x || 0)); const h = Math.floor(x / 3600), m = Math.floor(x / 60) % 60, sec = x % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sec).padStart(2, '0'); };
 const mb = (b) => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.round((b || 0) / 1024) + ' KB';
-const NET_NAMES = { 'car-wifi': 'the car Wi-Fi', 'iphone-hotspot': "the iPhone's hotspot", uplink: 'the uplink', wifi: 'Wi-Fi' };
+const NET_NAMES = { 'car-wifi': 'Wi-Fi auta', 'iphone-hotspot': 'hotspot iPhone\'a', uplink: 'łącze uplink', wifi: 'Wi-Fi' };
+/* n with its Polish noun: 1 przerwa, 2-4 przerwy (not 12-14), else przerw */
+const plural = (n, one, few, many) => n + ' ' + (n === 1 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? few : many);
+/* the receiver's HUD reasons (renderer/mgu_hud.c), in Polish; cluster-render's own pass as they are */
+const HUD_REASONS = {
+    'cluster-render is not installed: add it from the Store': 'brak cluster-render: dodaj go ze Store (robertnisipeanu/idrive-apps)',
+    "no access to cluster-render's socket": 'brak dostępu do cluster-render',
+    'cluster-render has no HUD on this car': 'cluster-render nie widzi HUD w tym aucie',
+    'cluster-render closed the connection': 'cluster-render zamknął połączenie',
+    'cluster-render sent a message too long': 'cluster-render przysłał zbyt długą wiadomość',
+    'no picture yet': 'czekam na obraz',
+    'no new picture': 'brak nowego obrazu',
+    'the HUD is not available': 'HUD niedostępny',
+};
 
 /**
  * What the page says: { head: { text, tone }, rows: [{ label, state: 'ok'|'wait'|'bad'|'off', detail }] } from the
@@ -73,71 +90,72 @@ const NET_NAMES = { 'car-wifi': 'the car Wi-Fi', 'iphone-hotspot': "the iPhone's
  */
 function view(s, pic, ca, opts) {
     const o = opts || {};
-    if (!s) return { head: { text: 'The AirPlay HP service does not answer. It comes with this app from the Store: restart the head unit once after installing.', tone: 'bad' }, rows: [] };
+    if (!s) return { head: { text: 'Usługa AirPlay HP nie odpowiada. Instaluje się z aplikacją ze Store: po instalacji uruchom jednostkę ponownie.', tone: 'bad' }, rows: [] };
     const on = s.mode === 'receiver' && s.active;
     const r = on ? (s.rx || {}) : {};
     const st = r.stream || {}, h = r.hls, c = r.client;
-    const who = (c && c.name) || 'The iPhone';
+    const who = (c && c.name) || 'iPhone';
     const playing = h && h.open && !h.ended;
     const mirroring = !h && r.video && r.videoRunning && st.frames > 0;
     const iface = (s.ifaces || []).find((i) => i.used && i.ip === r.ip);
     let head;
-    if (!on) head = { text: 'Off. Press "Start AirPlay".', tone: 'idle' };
-    else if (r.error && !r.running) head = { text: 'The receiver stopped: ' + r.error, tone: 'bad' };
-    else if (s.fw && s.fw.state === 'failed') head = { text: 'The firewall could not be opened: ' + (s.fw.error || ''), tone: 'bad' };
-    else if (h && h.ended && h.ended.why === 'error') head = { text: 'The video could not be played: ' + h.ended.error, tone: 'bad' };
-    else if (playing) head = { text: who + ' sent a video: ' + (h.paused ? 'paused' : h.buffering ? 'loading' : 'playing') + ', ' + hms(h.pos) + (h.dur ? ' / ' + hms(h.dur) : ''), tone: 'ok' };
-    else if (h && !h.ended) head = { text: who + ' sent a video: opening it from the internet', tone: 'wait' };
-    else if (mirroring) head = { text: who + ' mirrors its screen', tone: 'ok' };
-    else if (c) head = { text: who + ' is connected', tone: 'wait' };
-    else if (!r.running) head = { text: 'Starting...', tone: 'wait' };
-    else head = { text: 'Ready: on the iPhone, Screen Mirroring > ' + (r.name || 'BMW iDrive'), tone: 'ready' };
+    if (!on) head = { text: 'Wyłączony. Naciśnij „Włącz AirPlay”.', tone: 'idle' };
+    else if (r.error && !r.running) head = { text: 'Odbiornik się zatrzymał: ' + r.error, tone: 'bad' };
+    else if (s.fw && s.fw.state === 'failed') head = { text: 'Nie udało się otworzyć zapory: ' + (s.fw.error || ''), tone: 'bad' };
+    else if (h && h.ended && h.ended.why === 'error') head = { text: 'Nie udało się odtworzyć filmu: ' + h.ended.error, tone: 'bad' };
+    else if (playing) head = { text: who + ': film ' + (h.paused ? 'wstrzymany' : h.buffering ? 'się wczytuje' : 'gra') + ', ' + hms(h.pos) + (h.dur ? ' / ' + hms(h.dur) : ''), tone: 'ok' };
+    else if (h && !h.ended) head = { text: who + ' wysłał film: otwieram go z internetu', tone: 'wait' };
+    else if (mirroring) head = { text: who + ': odbicie lustrzane ekranu', tone: 'ok' };
+    else if (c) head = { text: who + ' jest połączony', tone: 'wait' };
+    else if (!r.running) head = { text: 'Uruchamianie...', tone: 'wait' };
+    else head = { text: 'Gotowy: na iPhonie Odbicie lustrzane ekranu > ' + (r.name || 'BMW iDrive'), tone: 'ready' };
     if (!on) return { head, rows: [] };
 
     const rows = [];
-    rows.push({ label: 'Receiver', state: r.running ? 'ok' : r.error ? 'bad' : 'wait',
-        detail: r.running ? '"' + (r.name || 'BMW iDrive') + '" on ' + (iface ? NET_NAMES[iface.kind] || iface.name : r.iface || '?') : r.error || 'starting' });
-    rows.push({ label: 'iPhone', state: c || h ? 'ok' : 'off', detail: c ? (c.name || 'an iPhone') : h ? 'sent a video' : 'none yet' });
+    rows.push({ label: 'Odbiornik', state: r.running ? 'ok' : r.error ? 'bad' : 'wait',
+        detail: r.running ? '„' + (r.name || 'BMW iDrive') + '” w sieci ' + (iface ? NET_NAMES[iface.kind] || iface.name : r.iface || '?') : r.error || 'uruchamianie' });
+    rows.push({ label: 'iPhone', state: c || h ? 'ok' : 'off', detail: c ? (c.name || 'iPhone') : h ? 'wysłał film' : 'jeszcze brak' });
     // the picture: a mirrored screen or a video, and why it is not on the screen
-    let pd = 'none yet', ps = 'off';
+    let pd = 'jeszcze brak', ps = 'off';
     if (playing) {
         const op = h.open;
-        pd = (op.vcodec ? op.vcodec.toUpperCase() : 'video') + (r.decoder && r.decoder.ok && r.decoder.w ? ' ' + r.decoder.w + 'x' + r.decoder.h : '') + (st.fps > 0 ? ', ' + st.fps + ' fps' : '');
+        pd = (op.vcodec ? op.vcodec.toUpperCase() : 'film') + (r.decoder && r.decoder.ok && r.decoder.w ? ' ' + r.decoder.w + 'x' + r.decoder.h : '') + (st.fps > 0 ? ', ' + st.fps + ' kl./s' : '');
         ps = 'ok';
     } else if (mirroring) {
-        pd = 'screen ' + r.video.w + 'x' + r.video.h + (st.fps > 0 ? ', ' + st.fps + ' fps' : '');
+        pd = 'ekran ' + r.video.w + 'x' + r.video.h + (st.fps > 0 ? ', ' + st.fps + ' kl./s' : '');
         ps = 'ok';
     }
-    if (r.decoder && !r.decoder.ok) { ps = 'bad'; pd = 'the GPU decoder failed: ' + r.decoder.error; }
+    if (r.decoder && !r.decoder.ok) { ps = 'bad'; pd = 'dekoder GPU zawiódł: ' + r.decoder.error; }
     else if (ps === 'ok' && pic && !pic.shown) { ps = 'wait'; pd += '; ' + pic.why; }
-    rows.push({ label: 'Picture', state: ps, detail: pd });
+    rows.push({ label: 'Obraz', state: ps, detail: pd });
     // the sound
     const snd = r.sound;
-    let sd = 'none yet', ss = 'off';
+    let sd = 'jeszcze brak', ss = 'off';
     if (snd && !snd.ok) { ss = 'bad'; sd = snd.error; }
     else if (snd && r.soundRunning) {
-        if (ca && ca.taken) { ss = 'bad'; sd = 'the speakers are in use by another app (Emby)'; }
+        if (ca && ca.taken) { ss = 'bad'; sd = 'głośniki zajęte przez inną aplikację (Emby)'; }
         else if (ca && ca.error) { ss = 'bad'; sd = ca.error; }
-        else if (ca && ca.connected) { ss = 'ok'; sd = 'on the car speakers' + (st.agaps ? ', ' + st.agaps + (st.agaps === 1 ? ' dropout' : ' dropouts') : ''); }
-        else { ss = 'wait'; sd = 'connecting the speakers'; }
+        else if (ca && ca.connected) { ss = 'ok'; sd = 'w głośnikach auta' + (st.agaps ? ', ' + plural(st.agaps, 'przerwa', 'przerwy', 'przerw') : ''); }
+        else { ss = 'wait'; sd = 'łączenie głośników'; }
     }
-    rows.push({ label: 'Sound', state: ss, detail: sd });
-    // the HUD (setting hud): only while parked
+    rows.push({ label: 'Dźwięk', state: ss, detail: sd });
+    // the HUD (setting hud): by "Picture only while parked", as the screen
     if (o.hud) {
         const hu = r.hud || {};
-        let hs = 'off', hd = 'none yet';
-        if (o.moving) hd = 'off while driving';
-        else if (hu.state === 'shown') { hs = 'ok'; hd = 'on the head-up display'; }
-        else if (hu.state === 'connecting' || hu.state === 'waiting') { hs = 'wait'; hd = hu.reason || 'connecting'; }
-        else if (hu.state === 'unavailable' || hu.state === 'error') { hs = 'bad'; hd = hu.reason || hu.state; }
+        const why = (x) => HUD_REASONS[x] || x;
+        let hs = 'off', hd = 'jeszcze brak';
+        if (o.driving) hd = 'wyłączony w czasie jazdy';
+        else if (hu.state === 'shown') { hs = 'ok'; hd = 'obraz na HUD'; }
+        else if (hu.state === 'connecting' || hu.state === 'waiting') { hs = 'wait'; hd = why(hu.reason) || 'łączenie'; }
+        else if (hu.state === 'unavailable' || hu.state === 'error') { hs = 'bad'; hd = why(hu.reason) || hu.state; }
         rows.push({ label: 'HUD', state: hs, detail: hd });
     }
     // the internet, for a video sent with the AirPlay button
     if (r.hlsOn) {
         const px = r.proxy || {}, ps2 = px.stats || {};
         rows.push({ label: 'Internet', state: px.state === 'on' ? 'ok' : px.state === 'failed' ? 'bad' : 'wait',
-            detail: px.state === 'on' ? (ps2.bytesIn ? mb(ps2.bytesIn) + ' for videos' : 'ready for videos (mgu-uplink)') : px.error || 'starting' });
-    } else if (o.videoButtonOff) rows.push({ label: 'Videos', state: 'off', detail: 'the AirPlay video button is off in Settings' });
+            detail: px.state === 'on' ? (ps2.bytesIn ? mb(ps2.bytesIn) + ' na filmy' : 'gotowy na filmy (mgu-uplink)') : px.error || 'uruchamianie' });
+    } else if (o.videoButtonOff) rows.push({ label: 'Filmy', state: 'off', detail: 'przycisk AirPlay w filmie wyłączony w Ustawieniach' });
     return { head, rows };
 }
 
@@ -160,7 +178,7 @@ mgu.run({
                 if (st && st.version && older(st.version, SERVICE_VERSION) && !st.active && !askedExit) {
                     askedExit = true;   // once: a service whose update failed is not stopped again and again
                     log.info('myairplay: service ' + st.version + ' running, ' + SERVICE_VERSION + ' installed: asking it to end');
-                    busy = 'Updating the service...';
+                    busy = 'Aktualizacja usługi...';
                     await ask('exit');
                     st = await ask('status');
                     busy = null;
@@ -177,10 +195,12 @@ mgu.run({
         }
         // the receiver as it worked for everything in the car: Apple TV 5,4 "BMW iDrive" on the car Wi-Fi first
         const startArgs = () => ({ mode: 'receiver', hls: ctx.settings.get('videoButton') !== false, identity: 'carplay', net: 'car' });
-        ui.onClick('BTN_RX', () => { mirror.wantAgain(); return command('start', 'Starting...', startArgs()); });
+        ui.onClick('BTN_RX', () => { mirror.wantAgain(); return command('start', 'Uruchamianie...', startArgs()); });
 
         /* ---------- stage 2: the picture over the screen, parked only ---------- */
         const parked = Parked.watch(ctx, log, { strict: true });
+        // "Picture only while parked" (on by default) and the car moving: no picture, on the screen or on the HUD
+        const driving = () => ctx.settings.get('parkedOnly') !== false && parked.moving();
         const mirrorOpts = { RenderClient, Recorder: record.Recorder, kit: record, appId: ctx.spec.id, log,
             overlay: () => videoOverlay(),
             // a played video's controls (controls.js, Emby's): touch and the controller go to them while it shows;
@@ -190,7 +210,7 @@ mgu.run({
             onShown: (on) => pageTouch(!on),
             statIno: (p) => { const f = fs.statSync(p); return f.isFile() ? f.ino : null; } };
         Object.defineProperty(mirrorOpts, 'hintText', { get: () => (videoOn()
-            ? 'Touch the picture or use the iDrive controller for the controls' : 'Press a button on the iDrive controller to return') });
+            ? 'Dotknij obrazu lub użyj kontrolera iDrive, by sterować' : 'Naciśnij przycisk kontrolera iDrive, by wrócić') });
         const mirror = createMirrorView(mirrorOpts);
         // The app's page is drawn by the kit on its own connection to mgu-render, which claims the page and its bar for
         // touch (found by Emby, 0.3.0 in the car: with the film over it, a touch went to the page's buttons underneath).
@@ -256,7 +276,7 @@ mgu.run({
         function barInfo() {
             const h = hlsOf() || {};
             if (seekTo != null && seekSentAt && (Date.now() - seekSentAt > 15000 || (Math.abs((h.pos || 0) - seekTo) < 5 && Date.now() - seekSentAt > 1500))) seekTo = null;
-            return { title: 'AirPlay video', pos: posNow(), dur: h.dur, paused: !!h.paused, aspect: aspect(), seeking: seekTo };
+            return { title: 'Film AirPlay', pos: posNow(), dur: h.dur, paused: !!h.paused, aspect: aspect(), seeking: seekTo };
         }
         let wasPaused = false;
         function videoOverlay() {
@@ -281,14 +301,14 @@ mgu.run({
         function syncMirror() {
             const rxOn = st && st.mode === 'receiver' && st.active ? st.rx : null;
             // "Picture only while parked" (on by default): off, the picture stays while driving (for passengers)
-            mirror.update({ rx: rxOn, pageVisible: shown(), driving: ctx.settings.get('parkedOnly') !== false && parked.moving() });
+            mirror.update({ rx: rxOn, pageVisible: shown(), driving: driving() });
             // the speakers while the iPhone's sound plays: stopped on the phone, they go back to the source before at once
             carAudio.want(!!(rxOn && rxOn.running && rxOn.soundRunning && shown()));
             // the HUD (setting hud): asked for each second while it should show, and off 3 s after the last ask
-            // (renderer/mgu_hud.c). Only while parked, whatever "Picture only while parked" says: the HUD is in the
-            // driver's view
+            // (renderer/mgu_hud.c). By "Picture only while parked", as the screen: this car's HUD is on the
+            // passenger's side
             const picture = !!(rxOn && rxOn.running && (rxOn.videoRunning || (rxOn.hls && rxOn.hls.open && !rxOn.hls.ended)));
-            const hudWant = ctx.settings.get('hud') === true && picture && !parked.moving();
+            const hudWant = ctx.settings.get('hud') === true && picture && !driving();
             if (hudWant || hudAsked) {
                 hudAsked = hudWant;
                 ask('hud', { on: hudWant }).then((r) => { if (r) st = r; });
@@ -303,7 +323,7 @@ mgu.run({
             }
         }
         if (ctx.app && ctx.app.on) ctx.app.on('shutdown', () => { mirror.close(); carAudio.want(false); if (hudAsked) ask('hud', { on: false }); });
-        ui.onClick('BTN_STOP', () => command('stop', 'Stopping...'));
+        ui.onClick('BTN_STOP', () => command('stop', 'Zatrzymywanie...'));
 
         function render() {
             const t = ctx.theme();
@@ -311,14 +331,14 @@ mgu.run({
             const on = st && st.active && st.mode === 'receiver';
             const left = on ? Math.max(0, Math.round((st.endsAt - st.now) / 60000)) : null;
             const inUse = on && st.rx && (st.rx.client || st.rx.hls);
-            G.frame(cv, t, ['AirPlay HP'], 0, [busy && { text: busy, color: 'accent' }, on && !inUse && left <= 10 && { text: 'OFF IN ' + left + ' MIN' }]);
+            G.frame(cv, t, ['AirPlay HP'], 0, [busy && { text: busy, color: 'accent' }, on && !inUse && left <= 10 && { text: 'WYŁ. ZA ' + left + ' MIN' }]);
             draw(cv, t);
             return ui.image('MAIN_GFX', cv);
         }
 
         function draw(cv, t) {
             const v = view(st, mirror.state(), carAudio.state(), { videoButtonOff: ctx.settings.get('videoButton') === false,
-                hud: ctx.settings.get('hud') === true, moving: parked.moving() });
+                hud: ctx.settings.get('hud') === true, driving: driving() });
             const TONE = { ok: GREEN, wait: AMBER, bad: RED, ready: GREEN, idle: t.accent };
             const hc = TONE[v.head.tone] || t.accent;
             // the state, across the page
@@ -327,7 +347,7 @@ mgu.run({
             cv.text(clip(cv, v.head.text, 30, 1500, 'bold'), 52, 112, 30, t.text, { font: 'bold', literal: true });
             // off: what "Start AirPlay" does
             if (!v.rows.length && st) {
-                ['"Start AirPlay" makes the head unit an AirPlay receiver,', '"BMW iDrive", for an hour; longer while an iPhone uses it.']
+                ['„Włącz AirPlay” zmienia jednostkę w odbiornik AirPlay', '„BMW iDrive” na godzinę; dłużej, gdy iPhone go używa.']
                     .forEach((l, i) => cv.text(l, 52, 200 + i * 34, 24, t.dim, { literal: true }));
             }
             // the rows
@@ -345,9 +365,9 @@ mgu.run({
                 cv.text(title, x, y, 24, t.accent, { font: 'bold', literal: true });
                 lines.forEach((l, k) => cv.text(l, x, y + 34 + k * 30, 22, t.text, { literal: true }));
             };
-            step(200, 'SCREEN MIRRORING', ['iPhone: Control Center > Screen Mirroring', '> BMW iDrive. Works with CarPlay connected.']);
-            step(330, 'A VIDEO (YOUTUBE)', ['The AirPlay button in the video > BMW iDrive.', 'Only while the iPhone is not in CarPlay.']);
-            cv.text('Touch the picture or use the controller for its controls', x, 470, 18, t.dim, { literal: true });
+            step(200, 'ODBICIE LUSTRZANE EKRANU', ['iPhone: Centrum sterowania > Odbicie lustrzane', '> BMW iDrive. Działa przy połączonym CarPlay.']);
+            step(330, 'FILM (YOUTUBE)', ['Przycisk AirPlay w filmie > BMW iDrive.', 'Tylko gdy iPhone nie jest w CarPlay.']);
+            cv.text('Dotknij obrazu lub użyj kontrolera, by sterować filmem', x, 470, 18, t.dim, { literal: true });
         }
 
         // only while the page shows: in the background the app leaves the service alone, so it can end

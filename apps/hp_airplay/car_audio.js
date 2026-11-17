@@ -102,7 +102,7 @@ function createCarAudio(signals, log, opts) {
                 am.id = ok ? r.mainConnectionID : null;
                 save(am.id);
                 am.connected = ok;
-                am.error = ok ? null : 'connect refused: ' + JSON.stringify(r);
+                am.error = ok ? null : 'połączenie odrzucone: ' + JSON.stringify(r);
                 log.info('car audio: connect ' + JSON.stringify(r));
                 if (!ok) await release();
             } else {
