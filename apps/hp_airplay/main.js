@@ -30,6 +30,8 @@ const { RenderClient } = require('./mgu_render_client');
 const { createMirrorView } = require('./mirror_view');
 const { createControls, videoRect } = require('./controls');
 const { createCarAudio } = require('./car_audio');
+const { ClusterRender } = require('./cluster_render_client');
+const { createHudTest } = require('./hud_test');
 
 const W = 1600, H = 520;
 const SOCK = process.env.MYAIRPLAY_SOCK || '/run/hp-airplay.sock';
@@ -38,7 +40,7 @@ const MINUTES = 60;
 const EXTEND_BELOW_MS = 10 * 60000;
 // the service version this app is built with: an older one still running (its files were updated, the
 // process not) is asked to end, and the socket starts the new one at the next request
-const SERVICE_VERSION = '1.6.0';
+const SERVICE_VERSION = '1.7.0';
 const older = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 const GREEN = '#2fd27a', AMBER = '#ffb020', RED = '#ef2b2d';
 
@@ -206,6 +208,23 @@ mgu.run({
         // passenger's side, where only the passenger sees it)
         const hudMode = () => (['parked', 'always'].indexOf(ctx.settings.get('hudMode')) >= 0 ? ctx.settings.get('hudMode') : 'off');
         const hudDriving = () => hudMode() === 'parked' && parked.moving();
+        // the HUD's layout (settings hudSize, hudX, hudY) and the film's shape (the receiver's, else 16:9)
+        const num = (k, d) => (typeof ctx.settings.get(k) === 'number' ? ctx.settings.get(k) : d);
+        function filmAspect() {
+            const r = st && st.rx, f = r && r.film, hl = r && r.hls && r.hls.open, v = r && r.video;
+            if (f && f.w && f.h) return f.w / f.h;
+            if (hl && hl.w && hl.h) return hl.w / hl.h;
+            if (v && v.w && v.h) return v.w / v.h;
+            return 16 / 9;
+        }
+        const hudLayout = () => ({ size: num('hudSize', 40), x: num('hudX', 50), y: num('hudY', 50), aspect: filmAspect() });
+        // a test picture on the HUD while its size or place is set (hud_test.js): where the film will go
+        const hudTest = createHudTest({ ClusterRender, log });
+        if (ctx.settings.onChange) {
+            ctx.settings.onChange((key) => {
+                if (['hudSize', 'hudX', 'hudY'].indexOf(key) >= 0 && !(parked.moving() && hudMode() !== 'always')) hudTest.show(hudLayout());
+            });
+        }
         const mirrorOpts = { RenderClient, Recorder: record.Recorder, kit: record, appId: ctx.spec.id, log,
             overlay: () => videoOverlay(),
             // a played video's controls (controls.js, Emby's): touch and the controller go to them while it shows;
@@ -320,12 +339,15 @@ mgu.run({
             // (renderer/mgu_hud.c)
             const picture = !!(rxOn && rxOn.running && (rxOn.videoRunning || (rxOn.hls && rxOn.hls.open && !rxOn.hls.ended)));
             const hudWant = hudMode() !== 'off' && picture && !hudDriving();
+            // the test picture while the HUD's size and place are set: gone after 10 s, or at once while driving
+            // unless the HUD shows while driving
+            hudTest.tick(!(parked.moving() && hudMode() !== 'always'));
             if (hudWant || hudAsked) {
                 hudAsked = hudWant;
                 // its size (% of the HUD) and place (% of the room left), and cluster-render's lighter packed blocks
-                const num = (k, d) => (typeof ctx.settings.get(k) === 'number' ? ctx.settings.get(k) : d);
-                ask('hud', { on: hudWant, size: num('hudSize', 100), x: num('hudX', 50), y: num('hudY', 50),
-                    packed: ctx.settings.get('hudQuality') !== 'sharp' }).then((r) => { if (r) st = r; });
+                const lay = hudLayout();
+                ask('hud', { on: hudWant, size: lay.size, x: lay.x, y: lay.y, packed: ctx.settings.get('hudQuality') !== 'sharp' })
+                    .then((r) => { if (r) st = r; });
             }
             if (shown()) { goneAt = 0; ended = false; return; }
             if (!rxOn || !rxOn.client || ended || ctx.settings.get('endOnLeave') === false) return;
@@ -336,7 +358,7 @@ mgu.run({
                 ask('end-session', { why: 'the app left the front' }).then((r) => { if (r) st = r; });
             }
         }
-        if (ctx.app && ctx.app.on) ctx.app.on('shutdown', () => { mirror.close(); carAudio.want(false); if (hudAsked) ask('hud', { on: false }); });
+        if (ctx.app && ctx.app.on) ctx.app.on('shutdown', () => { mirror.close(); carAudio.want(false); hudTest.close(); if (hudAsked) ask('hud', { on: false }); });
         ui.onClick('BTN_STOP', () => command('stop', 'Zatrzymywanie...'));
 
         function render() {

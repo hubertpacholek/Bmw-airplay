@@ -16,10 +16,13 @@
  * moved when only the place does.
  *
  * The link to the cluster carries 5.5 MB/s at most for every app; a whole 800x480 picture 15 times a second would be
- * 8.6 MB/s, and cluster-render then sends what it can, unevenly. So every n-th picture of the film goes, n from its
- * measured frame rate so they come evenly at MGU_HUD_FPS (default 15, 1..30) a second at most (24 or 30 fps: every
- * 2nd, 60: every 4th), and with PACKED (the app's default) as cluster-render's packed 4x4 blocks, about a third of
- * the bytes, where the service offers them (its hello's always_packed). A picture that does not change is repeated
+ * 8.6 MB/s, and cluster-render then sends what it can, unevenly. So the layer's pictures a second are what
+ * MGU_HUD_KBPS (default 1200 KB/s) carries at its size, 8 to MGU_HUD_FPS (default 30): a small one (40 % of the HUD,
+ * about 20 KB packed) every picture of a film, a whole-HUD one about 9. Every n-th picture of the film goes, n from its
+ * measured frame rate, so they come evenly (24 or 30 fps at 12: every 2nd); with PACKED (the app's default) as
+ * cluster-render's packed 4x4 blocks, about a third of the bytes, where the service offers them (its hello's
+ * always_packed); and tiles that change by a little only (dirty_threshold 12, above cluster-render's 8: the
+ * compression's noise) wait for its settle time. A picture that does not change is repeated
  * once a second for 5 s (cluster-render stalls a video layer after 6 s without one), then the layer stalls and the
  * HUD goes back to the car's own until the next picture. Not wanted, the connection closes: the layer goes with it,
  * and cluster-render fades the HUD back after its linger.
@@ -115,7 +118,7 @@ static unsigned g_hw, g_hh;          /* the HUD target's frame size, from the se
 static int g_can_repeat, g_can_pack;
 /* the layer now: its ref (0 none), frame size, place, packed */
 static unsigned g_ref, g_lw, g_lh, g_lx, g_ly;
-static int g_lpacked;
+static int g_lpacked, g_lfps;
 static unsigned char g_in[1 << 16];
 static size_t g_in_len;
 
@@ -125,6 +128,7 @@ static void disconnect(void) {
     g_hw = g_hh = 0;
     g_can_repeat = g_can_pack = 0;
     g_ref = g_lw = g_lh = g_lx = g_ly = 0;
+    g_lfps = 0;
     g_in_len = 0;
 }
 
@@ -313,8 +317,9 @@ static int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v;
 
 static void *hud_thread(void *arg) {
     (void) arg;
-    const char *e = getenv("MGU_HUD_FPS");
-    const int cap = e && atoi(e) > 0 ? clampi(atoi(e), 1, 30) : 15;
+    const char *e = getenv("MGU_HUD_FPS"), *k = getenv("MGU_HUD_KBPS");
+    const int max_fps = e && atoi(e) > 0 ? clampi(atoi(e), 1, 30) : 30;
+    const int kbps = k && atoi(k) > 0 ? atoi(k) : 1200;
     int64_t next_try = 0, last_sent = 0, last_new = 0, rate_at = 0;
     uint32_t last_seq = 0, rate_seq = 0;
     double src_fps = 0;
@@ -359,6 +364,7 @@ static void *hud_thread(void *arg) {
             src_fps = (double) (uint32_t) (seq - rate_seq) * 1e9 / (double) (now - rate_at);
             rate_at = now, rate_seq = seq;
         }
+        const int cap = g_lfps ? g_lfps : max_fps;
         unsigned n = src_fps > cap ? (unsigned) (src_fps / cap + 0.5) : 1;
         if (!n) n = 1;
         if (h && seq && seq != last_seq && (!last_seq || (uint32_t) (seq - last_seq) >= n)) {
@@ -387,11 +393,14 @@ static void *hud_thread(void *arg) {
                     if (send_json(j)) continue;
                 }
                 g_ref = ++next_ref;
+                /* the pictures a second its size allows: MGU_HUD_KBPS / its bytes (a third packed), 8 to max_fps */
+                const size_t bytes = (size_t) vw * vh * 3 / 2 / (packed ? 3 : 1);
+                const int fps = clampi((int) ((size_t) kbps * 1024 / (bytes ? bytes : 1)), max_fps < 8 ? max_fps : 8, max_fps);
                 snprintf(j, sizeof j, "{\"op\":\"layer\",\"ref\":%u,\"target\":\"hud\",\"kind\":\"video\",\"vw\":%u,\"vh\":%u,"
-                         "\"x\":%u,\"y\":%u,\"w\":%u,\"h\":%u,\"fps\":%d%s}",
-                         g_ref, vw, vh, lx, ly, vw, vh, cap, packed ? ",\"always_packed\":1" : "");
+                         "\"x\":%u,\"y\":%u,\"w\":%u,\"h\":%u,\"fps\":%d,\"dirty_threshold\":12%s}",
+                         g_ref, vw, vh, lx, ly, vw, vh, fps, packed ? ",\"always_packed\":1" : "");
                 if (send_json(j)) continue;
-                g_lw = vw, g_lh = vh, g_lx = lx, g_ly = ly, g_lpacked = packed;
+                g_lw = vw, g_lh = vh, g_lx = lx, g_ly = ly, g_lpacked = packed, g_lfps = fps;
                 const size_t need = (size_t) vw * vh * 3 / 2;
                 if (need > atlas_len) { free(atlas); atlas = malloc(need); atlas_len = atlas ? need : 0; }
                 if (strcmp(g_state, "shown")) set_state("waiting", "no picture yet");

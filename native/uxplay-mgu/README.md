@@ -31,9 +31,11 @@ driving), a thread connects to cluster-render
 group `tm_oap_app` is one of the receiver's) and sends the frame file's pictures to one video layer on its target `hud`
 (800x480 on iDrive 7): only the picture, the letterbox bars and a film's own left out, in its own shape, fitted into
 SIZE % of the HUD and placed at X %, Y % of the room left. The link to the cluster carries 5.5 MB/s at most for every
-app, so every n-th picture of the film goes, evenly, at most `MGU_HUD_FPS` (15) a second (24 or 30 fps: every 2nd), and
-with PACKED as cluster-render's packed 4x4 blocks (about a third of the bytes) where it offers them; a picture that
-stays the same is repeated once a second for 5 s. Not asked for, the connection closes and cluster-render fades the HUD
+app, so the layer gets the pictures a second `MGU_HUD_KBPS` (1200 KB/s) carries at its size, 8 to `MGU_HUD_FPS` (30):
+40 % of the HUD packed, every picture of a film; the whole HUD, about 9. Every n-th picture of the film goes, evenly,
+with PACKED as cluster-render's packed 4x4 blocks (about a third of the bytes) where it offers them, and small changes
+of a tile (`dirty_threshold` 12) wait for cluster-render's settle time; a picture that stays the same is repeated once a
+second for 5 s. Not asked for, the connection closes and cluster-render fades the HUD
 back to the car's own. Its events: `hud` (`state` off, connecting, waiting, shown, unavailable or error, and `reason`).
 
 **Stage 4**: a video sent with AirPlay's video button (`-hls`; YouTube's HLS through UxPlay's local playlists, or a

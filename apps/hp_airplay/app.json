@@ -2,7 +2,7 @@
   "id": "hp_airplay",
   "title": "AirPlay HP",
   "description": "The head unit as an AirPlay receiver for an iPhone: screen mirroring on the centre screen with the sound on the car's speakers (also with wireless CarPlay connected), and videos sent with the AirPlay button (YouTube) played by the head unit itself, with their controls on the iDrive. The picture shows while parked. Needs the AirPlay HP service.",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "language": "pl",
   "vendor": "custom",
   "loggingId": "OA9A",
@@ -27,7 +27,7 @@
     }
   },
   "requires": {
-    "hp-airplay": "1.6.0"
+    "hp-airplay": "1.7.0"
   },
   "screens": [
     {
@@ -73,23 +73,25 @@
     },
     {
       "key": "hudSize",
-      "label": "HUD: wielkość obrazu (część wyświetlacza)",
+      "label": "HUD: wielkość obrazu (część wyświetlacza; przy zmianie obraz testowy)",
       "type": "number",
       "unit": "%",
-      "default": 100,
+      "default": 40,
       "steps": [
-        100,
-        90,
-        80,
-        70,
-        60,
+        40,
         50,
-        40
-      ]
+        60,
+        70,
+        80,
+        90,
+        100,
+        30
+      ],
+      "reset": 1
     },
     {
       "key": "hudX",
-      "label": "HUD: położenie w poziomie (0 lewo, 50 środek, 100 prawo)",
+      "label": "HUD: położenie w poziomie (0 lewo, 50 środek, 100 prawo; przy zmianie obraz testowy)",
       "type": "number",
       "unit": "%",
       "default": 50,
@@ -109,7 +111,7 @@
     },
     {
       "key": "hudY",
-      "label": "HUD: położenie w pionie (0 góra, 50 środek, 100 dół)",
+      "label": "HUD: położenie w pionie (0 góra, 50 środek, 100 dół; przy zmianie obraz testowy)",
       "type": "number",
       "unit": "%",
       "default": 50,

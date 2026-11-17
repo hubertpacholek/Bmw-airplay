@@ -10,7 +10,8 @@ wyrównujący** dla odbicia lustrzanego ekranu. Obraz i dźwięk idą według sy
 iPhone'a, 200 ms po najszybszych pakietach, więc nierówne Wi-Fi nie powoduje przycinek w
 filmach (`native/uxplay-mgu/README.md`, „The jitter buffer”). Film przy odbiciu lustrzanym
 pokazuje się bez swoich czarnych pasów, w swoich proporcjach albo powiększony na cały ekran (ustawienia
-„Film na cały ekran” i „Film na ekranie”: odbiornik znajduje pasy, `native/uxplay-mgu/video/src/film_bars.cpp`). Opcjonalnie obraz także na HUD, z wyborem wielkości i położenia (ustawienia „Obraz na HUD”:
+„Film na cały ekran” i „Film na ekranie”: odbiornik znajduje pasy, `native/uxplay-mgu/video/src/film_bars.cpp`). Opcjonalnie obraz także na HUD, z wyborem wielkości (domyślnie 40%) i położenia, przy których
+ustawianiu HUD pokazuje obraz testowy (ustawienia „Obraz na HUD”:
 wyłączony, tylko na postoju albo także w czasie jazdy, bo w aucie, dla którego powstała ta aplikacja, HUD
 jest przeniesiony na stronę pasażera; wymaga **cluster-render** ze Store, ze źródła `robertnisipeanu/idrive-apps`).
 
@@ -37,4 +38,6 @@ cc -O2 -pthread native/uxplay-mgu/renderer/test_jitter.c native/uxplay-mgu/rende
 
 GPL-3.0-or-later (`LICENSE`). Odbiornik to UxPlay ([FDH2/UxPlay](https://github.com/FDH2/UxPlay),
 GPL-3.0), dekoder z [JustAnotherPU/moonride](https://github.com/JustAnotherPU/moonride)
-(GPL-3.0), FFmpeg na LGPL-2.1 (`FFMPEG-LICENSE` w paczce usługi).
+(GPL-3.0), FFmpeg na LGPL-2.1 (`FFMPEG-LICENSE` w paczce usługi). `apps/hp_airplay/cluster_render_client.js`
+to klient cluster-render z [robertnisipeanu/idrive-apps](https://github.com/robertnisipeanu/idrive-apps)
+(`native/cluster-render/js`, commit 74e749d), na MPL-2.0, bez zmian.

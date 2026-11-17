@@ -5,8 +5,9 @@
  * A 1920x720 frame file with the picture in its middle 1560x720 (Y 200, U 50, V 220) and the letterbox bars black:
  * wanted, the HUD gets hello, one video layer the picture's shape (800x368, centred) and frames of only the picture
  * in cluster-render's atlas (U and V side by side); a smaller size makes the layer again (dropping the old one), a
- * new place only moves it; a 30 fps film goes at an even 10 a second (MGU_HUD_FPS 10: every 3rd picture); packed
- * blocks where the service offers them; asked no more, it goes off within 3 s; "hud off" at once.
+ * new place only moves it; a 30 fps film on a 400x184 layer not packed goes at an even 10 a second (every 3rd
+ * picture), on a 40 % packed one every picture; packed blocks where the service offers them; asked no more, it goes
+ * off within 3 s; "hud off" at once.
  */
 #include <assert.h>
 #include <errno.h>
@@ -131,7 +132,7 @@ int main(void) {
     snprintf(a.sun_path, sizeof a.sun_path, "%.100s", g_sock_path);
     assert(bind(ls, (struct sockaddr *) &a, sizeof a) == 0 && listen(ls, 2) == 0);
     setenv("MGU_HUD_SOCKET", g_sock_path, 1);
-    setenv("MGU_HUD_FPS", "10", 1);
+    setenv("MGU_HUD_FPS", "30", 1);
 
     mgu_hud_init(emit);
     usleep(300000);
@@ -192,7 +193,8 @@ int main(void) {
     free(j);
     printf("size: made again; place: moved: ok\n");
 
-    /* a 30 fps film: an even 10 a second (every 3rd picture) */
+    /* a 30 fps film on a 400x184 layer, not packed (110 KB a picture: 11 a second by MGU_HUD_KBPS 1200): an even 10 a
+     * second (every 3rd picture) */
     g_bumping = 1;
     pthread_t bt;
     pthread_create(&bt, NULL, bumper, NULL);
@@ -238,6 +240,32 @@ int main(void) {
     assert(strstr(j, "\"vw\":800,\"vh\":368,") && strstr(j, "\"always_packed\":1"));
     free(j);
     printf("packed blocks where offered: ok\n");
+
+    /* 40 % of the HUD, packed: about 23 KB a picture, so every picture of a 30 fps film (MGU_HUD_FPS 30 here) */
+    mgu_hud_layout(40, 50, 50, 1);
+    g_bumping = 1;
+    pthread_create(&bt, NULL, bumper, NULL);
+    t0 = now();
+    int layer40 = 0;
+    while (now() - t0 < 1.5) {
+        struct pollfd pf = { c, POLLIN, 0 };
+        if (poll(&pf, 1, 100) == 1) {
+            assert(next_msg(c, &type, &body, &len, now() + 2) == 0);
+            if (type == 'J' && strstr((char *) body, "\"vw\":320,\"vh\":144,")) layer40 = 1;
+            free(body);
+        }
+    }
+    frames = 0;
+    t0 = now();
+    while (now() - t0 < 2.0) {
+        struct pollfd pf = { c, POLLIN, 0 };
+        if (poll(&pf, 1, 100) == 1) { assert(next_msg(c, &type, &body, &len, now() + 2) == 0); if (type == 'F') frames++; free(body); }
+    }
+    g_bumping = 0;
+    pthread_join(bt, NULL);
+    want();
+    printf("40 %% packed: layer 320x144: %s, %d frames in 2 s\n", layer40 ? "ok" : "MISSING", frames);
+    assert(layer40 && frames >= 54 && frames <= 64);
 
     /* "hud off" at once */
     usleep(200000);
