@@ -23,6 +23,7 @@
 #include <unistd.h>
 
 #include "decoder_msdk.h"
+#include "film_bars.h"
 #include "mgvf.h"
 #include "mgu_video.h"
 #include "mfx/mfxvideo.h"
@@ -44,6 +45,14 @@ uint32_t g_w = 1920, g_h = 720;
 std::string g_path = "/dev/shm/mgu-video-hp-airplay", g_err;
 /* where the picture is in the frame file's frames, the letterbox bars left out (the HUD shows only it) */
 volatile uint32_t g_pic[4] = {0, 0, 0, 0};
+/* where a film is within the picture, its own black bars left out (film_bars.cpp): w 0 none; seq counts changes */
+FilmBars g_bars;
+volatile uint32_t g_film[4] = {0, 0, 0, 0};
+volatile unsigned g_film_seq = 0;
+void film_reset() {
+    film_bars_reset(&g_bars);
+    if (g_film[2]) { g_film[0] = g_film[1] = g_film[2] = g_film[3] = 0; g_film_seq++; }
+}
 
 /* opens the frame file and the decoder; false (once, with g_err) when it cannot */
 bool open_locked() {
@@ -97,10 +106,18 @@ static int frame_locked(const unsigned char *data, int len, long long pts_ms, in
                     return;
                 }
                 g_file = true; g_w = w; g_h = h;
+                film_reset();
             }
             if (!g_file) return;
-            ytdec::nv12_to_i420(f.y, f.uv, f.pitch, g_native ? g_w : f.w, g_native ? g_h : f.h, g_mgvf.begin());
+            const uint32_t fw = g_native ? g_w : f.w, fh = g_native ? g_h : f.h;
+            uint8_t *dst = g_mgvf.begin();
+            ytdec::nv12_to_i420(f.y, f.uv, f.pitch, fw, fh, dst);
             g_pic[0] = f.pic_x, g_pic[1] = f.pic_y, g_pic[2] = f.pic_w, g_pic[3] = f.pic_h;
+            if (f.pic_x + f.pic_w <= fw && f.pic_y + f.pic_h <= fh &&
+                film_bars_frame(&g_bars, dst, fw, f.pic_x, f.pic_y, f.pic_w, f.pic_h)) {
+                g_film[0] = g_bars.film[0], g_film[1] = g_bars.film[1], g_film[2] = g_bars.film[2], g_film[3] = g_bars.film[3];
+                g_film_seq++;
+            }
             g_mgvf.commit();
             g_shown++;
         }, &err, true, true, wait ? (int64_t) pts_ms : -1);
@@ -154,6 +171,7 @@ extern "C" void mgu_video_stop(void) {
     g_reported = false;
     g_mgvf.close();
     g_file = false;
+    film_reset();
 }
 
 /* at exit: no frame file left behind */
@@ -168,6 +186,11 @@ extern "C" void mgu_video_close(void) {
 
 extern "C" void mgu_video_picture(unsigned *x, unsigned *y, unsigned *w, unsigned *h) {
     *x = g_pic[0], *y = g_pic[1], *w = g_pic[2], *h = g_pic[3];
+}
+
+extern "C" unsigned mgu_video_film(unsigned *x, unsigned *y, unsigned *w, unsigned *h) {
+    *x = g_film[0], *y = g_film[1], *w = g_film[2], *h = g_film[3];
+    return g_film_seq;
 }
 
 extern "C" const char *mgu_video_error(void) { return g_err.c_str(); }

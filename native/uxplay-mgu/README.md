@@ -25,7 +25,7 @@ on stdin changes the delay; the stats carry `jms`, `vq` / `aq` (waiting), `vlate
 after they were due), `aqdrop` (late sound dropped) and `agaps` (every gap in the sound; the app shows it).
 
 **The HUD** (`renderer/mgu_hud.c`): while the service asks for it (`hud on` on stdin, again at least every 3 s; the
-app asks each second while the picture may show: by "Picture only while parked", as the screen), a thread connects to cluster-render
+app asks each second while its setting "Picture on the HUD" lets it: only while parked, or also while driving), a thread connects to cluster-render
 ([robertnisipeanu/idrive-apps](https://github.com/robertnisipeanu/idrive-apps) `native/cluster-render`, its socket's
 group `tm_oap_app` is one of the receiver's), makes one video layer on its target `hud` (800x480 on iDrive 7), and sends
 it the frame file's newest picture, the letterbox bars left out (the decoder says where the picture is), fitted by an
@@ -49,6 +49,7 @@ and the hls demuxer opens each segment without our options).
 | `patch.py` | the changes to it: model `AppleTV5,4` and version `366.0` (iOS 27 sends the mirrored picture during CarPlay only to a receiver that presents itself so; found 2026-11-08), and the mDNS address from `UXPLAY_MDNS_IPV4` with `UXPLAY_MDNS_NO_IPV6` (the head unit has several interfaces) |
 | `renderer/mgu_renderer.c` | the renderer API without GStreamer |
 | `audio/sim_alsa.c`, `audio/test_follow.cpp` | the sound's way to the device against a simulated SmartXbar input whose clock is off (`make test-follow` in build.sh's container: +2000, -2000 and 0 ppm, never run dry nor overflowing) |
+| `video/src/film_bars.cpp`, `video/src/test_film_bars.cpp` | where a film is within the picture, its black bars left out (the event `film`; the app fills the screen with it), and its test (`c++ -O2 -Ivideo/src video/src/test_film_bars.cpp video/src/film_bars.cpp -o /tmp/tfb && /tmp/tfb`) |
 | `renderer/mgu_hud.c`, `renderer/test_hud.c` | the picture on the HUD through cluster-render, and its test against a stand-in for cluster-render's socket (`cc -O2 -pthread -Ivideo/src renderer/test_hud.c renderer/mgu_hud.c -o /tmp/th && /tmp/th`) |
 | `renderer/mgu_jitter.c`, `renderer/test_jitter.c` | the jitter buffer for screen mirroring, and its test off the car (`cc -O2 -pthread renderer/test_jitter.c renderer/mgu_jitter.c -lm && ./a.out`) |
 | `player/mgu_hls.cpp`, `player/test_hls.cpp` | stage 4: the player, and a program that plays an address off the car (`make ... build/out/test_hls`; `MGU_VIDEO_OFF=1`, `MGU_AUDIO=wav:<file>`) |

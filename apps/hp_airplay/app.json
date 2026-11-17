@@ -2,7 +2,7 @@
   "id": "hp_airplay",
   "title": "AirPlay HP",
   "description": "The head unit as an AirPlay receiver for an iPhone: screen mirroring on the centre screen with the sound on the car's speakers (also with wireless CarPlay connected), and videos sent with the AirPlay button (YouTube) played by the head unit itself, with their controls on the iDrive. The picture shows while parked. Needs the AirPlay HP service.",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "language": "pl",
   "vendor": "custom",
   "loggingId": "OA9A",
@@ -27,7 +27,7 @@
     }
   },
   "requires": {
-    "hp-airplay": "1.4.0"
+    "hp-airplay": "1.5.0"
   },
   "screens": [
     {
@@ -52,26 +52,40 @@
   ],
   "settings": [
     {
-      "key": "hud",
-      "label": "Obraz na HUD (jak ekran: według „Obraz tylko na postoju”; wymaga cluster-render ze Store)",
-      "type": "bool",
-      "default": false
+      "key": "hudMode",
+      "label": "Obraz na HUD (wymaga cluster-render ze Store)",
+      "type": "choice",
+      "default": "off",
+      "options": [
+        [
+          "off",
+          "Wyłączony"
+        ],
+        [
+          "parked",
+          "Tylko na postoju"
+        ],
+        [
+          "always",
+          "Także w czasie jazdy (HUD widzi tylko pasażer)"
+        ]
+      ]
     },
     {
       "key": "parkedOnly",
-      "label": "Obraz tylko na postoju, na ekranie i HUD (wyłączone: także w czasie jazdy, dla pasażera; kierowca nie może patrzeć)",
+      "label": "Obraz na ekranie tylko na postoju (wyłączone: także w czasie jazdy, dla pasażera; kierowca nie może patrzeć)",
       "type": "bool",
       "default": true
     },
     {
-      "key": "videoButton",
-      "label": "Przycisk AirPlay w filmie (YouTube): jednostka sama odtwarza film (tylko gdy iPhone nie jest w CarPlay)",
+      "key": "filmFill",
+      "label": "Film na cały ekran: bez czarnych pasów filmu (odbicie lustrzane i film z YouTube), w kształcie z ustawienia niżej",
       "type": "bool",
       "default": true
     },
     {
       "key": "aspect",
-      "label": "Kształt obrazu filmu (także przycisk na jego pasku)",
+      "label": "Kształt filmu na ekranie (także przycisk na pasku filmu z YouTube)",
       "type": "choice",
       "default": "fill",
       "options": [
@@ -88,6 +102,12 @@
           "Cały: cały film, czarne pasy"
         ]
       ]
+    },
+    {
+      "key": "videoButton",
+      "label": "Przycisk AirPlay w filmie (YouTube): jednostka sama odtwarza film (tylko gdy iPhone nie jest w CarPlay)",
+      "type": "bool",
+      "default": true
     },
     {
       "key": "endOnLeave",

@@ -29,6 +29,10 @@
  * "aadj" (samples added or left out to follow the car's sound clock) and "agaps" (every gap in the sound: late sound
  * dropped, the device run dry, sound that did not fit).
  *
+ * The film's rect within the picture, its own black bars left out (video/src/film_bars.cpp), when it changes:
+ * {"ev":"film","x":..,"y":..,"w":..,"h":..} in the frame file's pixels, w 0 when there are no bars; the app shows the
+ * film over the whole screen by it.
+ *
  * The HUD (renderer/mgu_hud.c): "hud on" on stdin, again at least every 3 s, puts the picture on the head-up display
  * through cluster-render; "hud off", or no "hud on" for 3 s, takes it off. Its events: hud.
  *
@@ -281,6 +285,14 @@ static void present_video(const unsigned char *data, int len, int64_t due_ns, mg
     pthread_mutex_lock(&mu);
     st.shown = shown; st.decerr = decerr;
     pthread_mutex_unlock(&mu);
+    /* the film's rect when its black bars change (video/src/film_bars.cpp) */
+    static unsigned film_seq = 0;
+    unsigned fx, fy, fw, fh;
+    const unsigned seq = mgu_video_film(&fx, &fy, &fw, &fh);
+    if (seq != film_seq) {
+        film_seq = seq;
+        emit("{\"ev\":\"film\",\"x\":%u,\"y\":%u,\"w\":%u,\"h\":%u}", fx, fy, fw, fh);
+    }
 }
 
 uint64_t video_renderer_render_buffer(unsigned char *data, int *data_len, int *nal_count, uint64_t *ntp_time) {

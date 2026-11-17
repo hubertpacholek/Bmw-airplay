@@ -151,12 +151,15 @@ function createControls(o) {
 }
 
 /** where the picture goes for an aspect: fit (whole, bars), fill (the screen full, the edges cut), zoom (between) */
-function videoRect(mode, fw, fh, pl) {
+/* where an fw x fh frame goes on the placement pl so that its film (film: { x, y, w, h } in the frame, its black bars
+ * left out; else the whole frame) is fitted, filled or between, centred; what falls outside pl is cut */
+function videoRect(mode, fw, fh, pl, film) {
     if (!fw || !fh) return { x: 0, y: 0, w: pl.w, h: pl.h };
-    const fit = Math.min(pl.w / fw, pl.h / fh), fill = Math.max(pl.w / fw, pl.h / fh);
+    const c = film && film.w > 0 && film.h > 0 ? film : { x: 0, y: 0, w: fw, h: fh };
+    const fit = Math.min(pl.w / c.w, pl.h / c.h), fill = Math.max(pl.w / c.w, pl.h / c.h);
     const k = mode === 'fill' ? fill : mode === 'zoom' ? Math.sqrt(fit * fill) : fit;
     const w = Math.round(fw * k), h = Math.round(fh * k);
-    return { x: Math.round((pl.w - w) / 2), y: Math.round((pl.h - h) / 2), w, h };
+    return { x: Math.round(pl.w / 2 - (c.x + c.w / 2) * k), y: Math.round(pl.h / 2 - (c.y + c.h / 2) * k), w, h };
 }
 
 module.exports = { createControls, videoRect, BUTTONS: ALL_BUTTONS, hms };

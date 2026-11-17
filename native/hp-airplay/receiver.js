@@ -76,7 +76,7 @@ const NOISE = /seconds since last client feedback|^\s*$|httpd didn't get respons
 function freshState() {
     return {
         running: false, pid: null, starts: 0, exit: null, error: null, ip: null, iface: null,
-        client: null, video: null, videoRunning: false, audio: null, decoder: null, sound: null, soundRunning: false, cpu: null, hls: null, hud: null,
+        client: null, video: null, videoRunning: false, audio: null, decoder: null, sound: null, soundRunning: false, cpu: null, hls: null, hud: null, film: null,
         stream: { frames: 0, fps: 0, kbps: 0, idr: 0, sps: 0, audio: 0, shown: 0, decerr: 0, adec: 0, afull: 0, aerr: 0, axrun: 0, adev: -1, agaps: 0, aadj: 0, at: 0 },
         lines: [],
     };
@@ -155,6 +155,11 @@ function createReceiver(opts) {
         case 'hlsend':
             if (st.hls) st.hls.ended = { why: j.why, error: j.error || null, at: now() };
             if (o.log) o.log('receiver: video ' + (j.why === 'end' ? 'ended' : j.why === 'stopped' ? 'stopped' : 'failed: ' + j.error));
+            break;
+        case 'film':
+            // a film's rect within the picture, its black bars left out (video/src/film_bars.cpp); w 0: none
+            st.film = j.w > 0 && j.h > 0 ? { x: j.x, y: j.y, w: j.w, h: j.h } : null;
+            if (o.log) o.log('receiver: film ' + (st.film ? st.film.w + 'x' + st.film.h + ' at ' + st.film.x + ',' + st.film.y : 'without bars'));
             break;
         case 'hud':
             st.hud = { state: j.state, reason: j.reason || '', at: now() };

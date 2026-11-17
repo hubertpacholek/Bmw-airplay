@@ -9,8 +9,9 @@
  *                     internet (mgu-uplink), with its controls on the iDrive (controls.js); iOS plays it this way
  *                     only while the iPhone is not in a CarPlay session (setting "AirPlay video button", on).
  * The picture shows while the car is parked (setting "Picture only while parked", on), over the whole screen
- * (mirror_view.js), and on the HUD too (setting "Picture on the HUD", off; this car's HUD is moved to the passenger's
- * side) by the same setting; the iDrive controller's buttons hide a mirrored screen, "Start AirPlay" shows it again.
+ * (mirror_view.js), a film in it without its black bars (setting "Film on the whole screen", on), and on the HUD too
+ * (setting "Picture on the HUD": off, only while parked, or also while driving: this car's HUD is moved to the
+ * passenger's side); the iDrive controller's buttons hide a mirrored screen, "Start AirPlay" shows it again.
  *
  * The receiver runs in the service (native/hp-airplay, a root tool) from "Start AirPlay" for an hour, longer
  * while an iPhone uses it; the app talks to it over /run/hp-airplay.sock (a JSON object per line).
@@ -37,7 +38,7 @@ const MINUTES = 60;
 const EXTEND_BELOW_MS = 10 * 60000;
 // the service version this app is built with: an older one still running (its files were updated, the
 // process not) is asked to end, and the socket starts the new one at the next request
-const SERVICE_VERSION = '1.4.0';
+const SERVICE_VERSION = '1.5.0';
 const older = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 const GREEN = '#2fd27a', AMBER = '#ffb020', RED = '#ef2b2d';
 
@@ -139,7 +140,7 @@ function view(s, pic, ca, opts) {
         else { ss = 'wait'; sd = 'łączenie głośników'; }
     }
     rows.push({ label: 'Dźwięk', state: ss, detail: sd });
-    // the HUD (setting hud): by "Picture only while parked", as the screen
+    // the HUD (setting hudMode)
     if (o.hud) {
         const hu = r.hud || {};
         const why = (x) => HUD_REASONS[x] || x;
@@ -201,6 +202,10 @@ mgu.run({
         const parked = Parked.watch(ctx, log, { strict: true });
         // "Picture only while parked" (on by default) and the car moving: no picture, on the screen or on the HUD
         const driving = () => ctx.settings.get('parkedOnly') !== false && parked.moving();
+        // the HUD's own setting: off, only while parked, or also while driving (this car's HUD is moved to the
+        // passenger's side, where only the passenger sees it)
+        const hudMode = () => (['parked', 'always'].indexOf(ctx.settings.get('hudMode')) >= 0 ? ctx.settings.get('hudMode') : 'off');
+        const hudDriving = () => hudMode() === 'parked' && parked.moving();
         const mirrorOpts = { RenderClient, Recorder: record.Recorder, kit: record, appId: ctx.spec.id, log,
             overlay: () => videoOverlay(),
             // a played video's controls (controls.js, Emby's): touch and the controller go to them while it shows;
@@ -279,15 +284,22 @@ mgu.run({
             return { title: 'Film AirPlay', pos: posNow(), dur: h.dur, paused: !!h.paused, aspect: aspect(), seeking: seekTo };
         }
         let wasPaused = false;
+        // a film's rect without its black bars (the receiver finds it, video/src/film_bars.cpp), while "Film na cały
+        // ekran" is on
+        const filmOf = () => (ctx.settings.get('filmFill') !== false && st && st.rx && st.rx.film) || null;
         function videoOverlay() {
-            if (!videoOn()) return null;   // screen mirroring: the whole screen, the decoder fitted it
-            const d = st.rx.decoder, fw = d && d.ok ? d.w : 0, fh = d && d.ok ? d.h : 0, mode = aspect();
+            const d = st && st.rx && st.rx.decoder, fw = d && d.ok ? d.w : 0, fh = d && d.ok ? d.h : 0, mode = aspect(), film = filmOf();
+            if (!videoOn()) {
+                // screen mirroring: the whole screen as the decoder fitted it, or a film in it placed by its shape
+                if (!film || !fw) return null;
+                return { key: ['mirror', mode, fw, fh, film.x, film.y, film.w, film.h].join('#'), rect: (p) => videoRect(mode, fw, fh, p, film) };
+            }
             const info = barInfo();
             if (info.paused !== wasPaused) { wasPaused = info.paused; controls.keepOpen(info.paused); }   // paused: the bar stays
             const bar = controls.key(info);
             return {
-                key: [mode, fw, fh, bar].join('#'),
-                rect: (p) => videoRect(mode, fw, fh, p),
+                key: [mode, fw, fh, bar, film ? [film.x, film.y, film.w, film.h].join(',') : ''].join('#'),
+                rect: (p) => videoRect(mode, fw, fh, p, film),
                 draw: (rec, p) => { if (bar) controls.draw(rec, p, info); },
             };
         }
@@ -304,11 +316,10 @@ mgu.run({
             mirror.update({ rx: rxOn, pageVisible: shown(), driving: driving() });
             // the speakers while the iPhone's sound plays: stopped on the phone, they go back to the source before at once
             carAudio.want(!!(rxOn && rxOn.running && rxOn.soundRunning && shown()));
-            // the HUD (setting hud): asked for each second while it should show, and off 3 s after the last ask
-            // (renderer/mgu_hud.c). By "Picture only while parked", as the screen: this car's HUD is on the
-            // passenger's side
+            // the HUD (setting hudMode): asked for each second while it should show, and off 3 s after the last ask
+            // (renderer/mgu_hud.c)
             const picture = !!(rxOn && rxOn.running && (rxOn.videoRunning || (rxOn.hls && rxOn.hls.open && !rxOn.hls.ended)));
-            const hudWant = ctx.settings.get('hud') === true && picture && !driving();
+            const hudWant = hudMode() !== 'off' && picture && !hudDriving();
             if (hudWant || hudAsked) {
                 hudAsked = hudWant;
                 ask('hud', { on: hudWant }).then((r) => { if (r) st = r; });
@@ -338,7 +349,7 @@ mgu.run({
 
         function draw(cv, t) {
             const v = view(st, mirror.state(), carAudio.state(), { videoButtonOff: ctx.settings.get('videoButton') === false,
-                hud: ctx.settings.get('hud') === true, driving: driving() });
+                hud: hudMode() !== 'off', driving: hudDriving() });
             const TONE = { ok: GREEN, wait: AMBER, bad: RED, ready: GREEN, idle: t.accent };
             const hc = TONE[v.head.tone] || t.accent;
             // the state, across the page

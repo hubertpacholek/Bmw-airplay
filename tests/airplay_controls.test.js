@@ -121,6 +121,19 @@ test('aspect: fit keeps the whole film, fill covers the screen, zoom is between'
     assert.deepStrictEqual(videoRect('fill', 0, 0, PL), { x: 0, y: 0, w: 1920, h: 720 });
 });
 
+test('a mirrored film without its black bars: its rect fitted or filled, the rest of the frame outside', () => {
+    // the iPhone's screen at 180..1740 of the 1920x720 frame, a 2.39:1 film in it at rows 34..686
+    const film = { x: 180, y: 34, w: 1560, h: 652 };
+    const fit = videoRect('fit', 1920, 720, PL, film), kf = fit.w / 1920;
+    assert.ok(Math.abs(fit.y + 34 * kf) < 1 && Math.abs(fit.y + 686 * kf - 720) < 1, JSON.stringify(fit));   // the film's full height
+    assert.ok(Math.abs((fit.x + 180 * kf) - (1920 - (fit.x + 1740 * kf))) < 2, JSON.stringify(fit));         // centred
+    const fill = videoRect('fill', 1920, 720, PL, film), k = fill.w / 1920;
+    assert.ok(Math.abs(fill.x + 180 * k) < 1 && Math.abs(fill.x + 1740 * k - 1920) < 1, JSON.stringify(fill));  // the film's full width
+    assert.ok(fill.y + 34 * k < 0 && fill.y + 686 * k > 720, JSON.stringify(fill));                            // and more than the height
+    // no film found: as before, the whole frame
+    assert.deepStrictEqual(videoRect('fill', 1920, 1080, PL, null), videoRect('fill', 1920, 1080, PL));
+});
+
 (async () => {
     let failed = 0;
     for (const t of tests) {

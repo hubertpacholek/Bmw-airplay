@@ -292,6 +292,7 @@ function fakeReceiver(dir) {
         "setTimeout(() => out({ ev: 'decoder', ok: true, path: process.env.MGU_VIDEO_PATH, w: 1920, h: 720 }), 300);",
         "setTimeout(() => { out({ ev: 'audio', ct: 8 }); out({ ev: 'sound', ok: true, device: process.env.MGU_AUDIO.slice(5), ct: 8 }); }, 320);",
         "setTimeout(() => { require('fs').writeFileSync(process.env.MGU_VIDEO_PATH, 'MGVF'); out({ ev: 'stats', frames: 60, fps: 30, kbps: 4200, idr: 1, sps: 1, audio: 10, shown: 58, decerr: 0 }); }, 400);",
+        "setTimeout(() => out({ ev: 'film', x: 180, y: 34, w: 1560, h: 652 }), 450);",
         "setTimeout(() => out({ ev: 'soundstop' }), 1400);",
         "process.on('SIGTERM', () => { out({ ev: 'stop', frames: 60 }); process.exit(0); });",
         "setInterval(() => {}, 1000);",
@@ -318,6 +319,8 @@ test('receiver: started with its address and ports, its reports read, stopped', 
         // stage 2: the GPU decoder and its frame file
         assert.deepStrictEqual([s.rx.decoder.ok, s.rx.decoder.w, s.rx.decoder.h, s.rx.decoder.path], [true, 1920, 720, videoPath]);
         assert.strictEqual(s.rx.stream.shown, 58);
+        // a film found within the picture, its black bars left out
+        assert.deepStrictEqual(s.rx.film, { x: 180, y: 34, w: 1560, h: 652 });
         // stage 3: the sound into SmartXbar's CarLife input
         assert.deepStrictEqual([s.rx.sound.ok, s.rx.sound.device, s.rx.sound.ct], [true, 'plug:smartx:CarLifeMedia_CF_48_STEREO', 8]);
         assert.strictEqual(s.rx.soundRunning, true);

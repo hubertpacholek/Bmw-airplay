@@ -22,7 +22,7 @@ C_OBJS  = $(patsubst %.c,$(OUT)/obj/%.o,$(notdir $(C_SRCS)))
 
 # stage 2: the GPU decoder (video/: Moonride's copy of waze-on-cluster's MSDK decoder, its frame file writer), linked
 # against stubs of the unit's libmfxhw64 / libva / libva-drm made from their export lists; every import is checked
-VIDEO_SRCS = video/src/decoder_msdk.cpp video/src/nal_reader.cpp video/src/mgvf.cpp video/src/mgu_video.cpp
+VIDEO_SRCS = video/src/decoder_msdk.cpp video/src/nal_reader.cpp video/src/mgvf.cpp video/src/mgu_video.cpp video/src/film_bars.cpp
 VIDEO_OBJS = $(patsubst %.cpp,$(OUT)/obj/v_%.o,$(notdir $(VIDEO_SRCS)))
 VIDEO_CXXFLAGS = -std=c++14 -O2 -g0 -Wall -Wno-missing-field-initializers -DNDEBUG -Ivideo/src -Ivideo/abi/include
 STUBS   = $(OUT)/stub/libmfxhw64.so $(OUT)/stub/libva.so.1 $(OUT)/stub/libva-drm.so.1

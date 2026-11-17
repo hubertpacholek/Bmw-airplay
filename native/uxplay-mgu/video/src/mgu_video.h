@@ -24,6 +24,9 @@ const char *mgu_video_path(void);
 void mgu_video_size(unsigned *w, unsigned *h);
 /* where the picture is in the last frame written, the letterbox bars left out (0 x 0 before the first) */
 void mgu_video_picture(unsigned *x, unsigned *y, unsigned *w, unsigned *h);
+/* where a film is within the picture, its own black bars left out (w 0: no bars found); returns a count that changes
+ * with it */
+unsigned mgu_video_film(unsigned *x, unsigned *y, unsigned *w, unsigned *h);
 #ifdef __cplusplus
 }
 #endif

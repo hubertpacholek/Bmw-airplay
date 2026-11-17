@@ -27,6 +27,7 @@
 static char g_frame_path[256], g_sock_path[256];
 const char *mgu_video_path(void) { return g_frame_path; }
 void mgu_video_picture(unsigned *x, unsigned *y, unsigned *w, unsigned *h) { *x = 180, *y = 0, *w = 1560, *h = 720; }
+unsigned mgu_video_film(unsigned *x, unsigned *y, unsigned *w, unsigned *h) { *x = *y = *w = *h = 0; return 0; }
 
 static char g_events[4096];
 static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;

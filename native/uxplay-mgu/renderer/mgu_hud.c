@@ -3,12 +3,14 @@
  * mgu_hud.c - the picture on the head-up display, through cluster-render (robertnisipeanu/idrive-apps,
  * native/cluster-render: PROTOCOL.md, version 1).
  *
- * Only while wanted: "hud on" on stdin, again at least every 3 s. The app asks each second while the picture may show
- * (its setting "Picture only while parked", as for the screen: the HUD of the car it was made for is on the passenger's
- * side) and stops at once when it may not; if the app or the service stops asking, the HUD goes dark 3 s later.
+ * Only while wanted: "hud on" on stdin, again at least every 3 s. The app asks each second while its setting "Picture
+ * on the HUD" lets it (only while parked, or also while driving: the HUD of the car it was made for is on the
+ * passenger's side) and stops at once when it does not; if the app or the service stops asking, the HUD goes dark 3 s
+ * later.
  * Wanted, a thread connects to cluster-render's socket (its group, tm_oap_app, is one of the receiver's), makes one
  * video layer on the target "hud" (800x480 on iDrive 7) and sends it the frame file's newest picture
- * (video/src/mgu_video.cpp's, read through a read-only mapping of its own), the letterbox bars left out, fitted into
+ * (video/src/mgu_video.cpp's, read through a read-only mapping of its own), the letterbox bars left out (a film's
+ * own too: video/src/film_bars.cpp), fitted into
  * the HUD, at most MGU_HUD_FPS (default 15, 1..30) times a second. A picture that does not change is repeated once
  * a second for 5 s (cluster-render stalls a video layer after 6 s without one), then the layer stalls and the HUD
  * goes back to the car's own until the next picture. Not wanted, the connection closes: the layer goes with it, and
@@ -346,7 +348,8 @@ static void *hud_thread(void *arg) {
             const uint32_t slot = __atomic_load_n(&h->slot, __ATOMIC_ACQUIRE) % h->nslot, fw = h->w, fh = h->h;
             const unsigned char *frame = g_map + sizeof *h + (size_t) slot * fw * fh * 3 / 2;
             unsigned px = 0, py = 0, pw = 0, ph = 0;
-            mgu_video_picture(&px, &py, &pw, &ph);
+            mgu_video_film(&px, &py, &pw, &ph);           /* a film without its black bars, */
+            if (!pw || !ph) mgu_video_picture(&px, &py, &pw, &ph);   /* else the picture */
             if (!pw || !ph || px + pw > fw || py + ph > fh) px = py = 0, pw = fw, ph = fh;
             px &= ~1u, py &= ~1u, pw &= ~1u, ph &= ~1u;
             to_atlas(frame, fw, fh, px, py, pw, ph, atlas, g_hw, g_hh);
