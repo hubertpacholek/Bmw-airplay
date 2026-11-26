@@ -231,7 +231,7 @@ mgu.run({
             // screen mirroring keeps the controller's buttons for hiding the picture
             onTouch: (phase, x, y, pl) => { if (pl && videoOn() && controls.touch(phase, x, y, pl, barInfo())) mirror.tick(); },
             onCcu: (c) => { if (!videoOn()) return false; const r = controls.ccu(c); mirror.tick(); return r; },
-            onShown: (on) => pageTouch(!on),
+            onShown: (on) => { pageShown(!on); pageTouch(!on); },
             statIno: (p) => { const f = fs.statSync(p); return f.isFile() ? f.ino : null; } };
         Object.defineProperty(mirrorOpts, 'hintText', { get: () => (videoOn()
             ? 'Dotknij obrazu lub użyj kontrolera iDrive, by sterować' : 'Naciśnij przycisk kontrolera iDrive, by wrócić') });
@@ -249,6 +249,23 @@ mgu.run({
                 if (disp.gpu && disp.gpu.claim) disp.gpu.claim([]);
                 return undefined;
             };
+        }
+        // While the picture shows, the page's own layer stays hidden: mgu-render puts a layer on top whenever its
+        // surface is made again (native/mgu-render/src/main.c, surface_create), and the kit makes the page's again when
+        // it places it at a new size (back from Settings), so the page then covered the picture, but for its edges
+        // beside the page (1.7.0 in the car)
+        let pageHidden = false;
+        if (disp && typeof disp._syncVisible === 'function') {
+            const syncVisible = disp._syncVisible.bind(disp);
+            disp._syncVisible = () => {
+                if (pageHidden) { if (disp.gpu) disp.gpu.show(false); return undefined; }
+                return syncVisible();
+            };
+        }
+        function pageShown(on) {
+            if (on === !pageHidden) return;
+            pageHidden = !on;
+            try { if (disp && disp._syncVisible) disp._syncVisible(); } catch (e) { log.warn('airplay page layer: ' + e); }
         }
         function pageTouch(on) {
             if (on === pageClaims) return;
