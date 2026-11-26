@@ -59,6 +59,14 @@ def main():
          'requires': app.get('requires', {}), 'uninstallable': True, 'icon': ICON, 'iconSha256': sha256(os.path.join(ROOT, ICON)),
          'texts': TEXTS[APP]},
     ]
+    # components built elsewhere and listed here too (extra/components.json: Maps on cluster from
+    # hubertpacholek/yanosiknazegarach), their packages in packages/ beside ours
+    extra = os.path.join(ROOT, 'extra', 'components.json')
+    if os.path.exists(extra):
+        for c in json.load(open(extra))['components']:
+            p = os.path.join(ROOT, c['artifact']['url'])
+            assert os.path.getsize(p) == c['artifact']['size'] and sha256(p) == c['artifact']['sha256'], p
+            components.append(c)
     with open(os.path.join(ROOT, 'catalog.json'), 'w') as f:
         json.dump({'schema': 2, 'name': 'AirPlay HP', 'components': components}, f, indent=2, ensure_ascii=False)
         f.write('\n')

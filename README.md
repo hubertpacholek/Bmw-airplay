@@ -15,6 +15,10 @@ ustawianiu HUD pokazuje obraz testowy (ustawienia „Obraz na HUD”:
 wyłączony, tylko na postoju albo także w czasie jazdy, bo w aucie, dla którego powstała ta aplikacja, HUD
 jest przeniesiony na stronę pasażera; wymaga **cluster-render** ze Store, ze źródła `robertnisipeanu/idrive-apps`).
 
+To samo źródło daje też **Maps on cluster** z mapą CarPlay (np. Yanosika) na zegarach 1,3 raza bardziej
+oddaloną: waze-on-cluster 0.14.19 z forka [hubertpacholek/yanosiknazegarach](https://github.com/hubertpacholek/yanosiknazegarach)
+(`store/README.md` tam; tutaj `extra/components.json` i paczki w `packages/`).
+
 ## Instalacja
 
 1. Jeśli masz **myAirPlay** od aurelmarius, usuń najpierw w Store aplikację i jej usługę:

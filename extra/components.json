@@ -1,0 +1,309 @@
+{
+  "from": "https://github.com/hubertpacholek/yanosiknazegarach (store/)",
+  "components": [
+    {
+      "id": "robertn_waze_cluster",
+      "kind": "app",
+      "title": "Maps on cluster",
+      "description": "Shows the CarPlay or Android Auto map on the instrument cluster, and on the HUD if you choose. On supported cars it turns on by itself after you install it and restart the head unit.",
+      "version": "0.6.17",
+      "artifact": {
+        "name": "robertn_waze_cluster@0.6.17.tgz",
+        "size": 100869,
+        "sha256": "e8bb2cdf2a6c5edaf872f43f4303ab65e201d8bcccdaab88162e437223e18000",
+        "url": "packages/robertn_waze_cluster@0.6.17.tgz"
+      },
+      "build": "unit",
+      "requires": {
+        "waze-on-cluster": "0.14.16"
+      },
+      "mguHmi": [
+        "ID7"
+      ],
+      "uninstallable": true,
+      "texts": {
+        "ar": {
+          "title": "الخرائط على لوحة العدادات",
+          "description": "يعرض خريطة CarPlay أو Android Auto على لوحة العدادات، وعلى HUD إذا اخترت ذلك. في السيارات المدعومة يعمل تلقائيًا بعد تثبيته وإعادة تشغيل الوحدة الرئيسية."
+        },
+        "cs": {
+          "title": "Mapy na přístrojovém štítu",
+          "description": "Zobrazí mapu CarPlay nebo Android Auto na přístrojovém štítu a podle volby i na HUD. U podporovaných vozů se zapne sám po instalaci a restartu hlavní jednotky."
+        },
+        "da": {
+          "title": "Kort i instrumentpanelet",
+          "description": "Viser CarPlay- eller Android Auto-kortet i instrumentpanelet og, hvis du vælger det, på HUD. På understøttede biler slår det sig selv til, når du har installeret det og genstartet hovedenheden."
+        },
+        "de": {
+          "title": "Karten im Kombiinstrument",
+          "description": "Zeigt die CarPlay- oder Android-Auto-Karte im Kombiinstrument und auf Wunsch im HUD. Bei unterstützten Fahrzeugen schaltet sie sich nach der Installation und einem Neustart der Headunit von selbst ein."
+        },
+        "el": {
+          "title": "Χάρτες στα όργανα",
+          "description": "Εμφανίζει τον χάρτη του CarPlay ή του Android Auto στα όργανα και, αν το επιλέξετε, στο HUD. Στα υποστηριζόμενα αυτοκίνητα ενεργοποιείται μόνο του μετά την εγκατάσταση και την επανεκκίνηση της μονάδας."
+        },
+        "es-US": {
+          "title": "Mapas en el tablero",
+          "description": "Muestra el mapa de CarPlay o Android Auto en el tablero de instrumentos y, si lo eliges, en el HUD. En los autos compatibles se activa solo después de instalarlo y reiniciar la unidad principal."
+        },
+        "es": {
+          "title": "Mapas en el cuadro",
+          "description": "Muestra el mapa de CarPlay o Android Auto en el cuadro de instrumentos y, si lo eliges, en el HUD. En los coches compatibles se activa solo tras instalarlo y reiniciar la unidad principal."
+        },
+        "fi": {
+          "title": "Kartat mittaristossa",
+          "description": "Näyttää CarPlayn tai Android Auton kartan mittaristossa ja halutessasi HUD-näytössä. Tuetuissa autoissa se kytkeytyy päälle itsestään asennuksen ja pääyksikön uudelleenkäynnistyksen jälkeen."
+        },
+        "fr-CA": {
+          "title": "Cartes au combiné",
+          "description": "Affiche la carte CarPlay ou Android Auto sur le combiné d'instruments et, si vous le souhaitez, sur le HUD. Sur les véhicules pris en charge, elle s'active d'elle-même après l'installation et un redémarrage du système."
+        },
+        "fr": {
+          "title": "Cartes au combiné",
+          "description": "Affiche la carte CarPlay ou Android Auto sur le combiné d'instruments et, si vous le souhaitez, sur le HUD. Sur les véhicules pris en charge, elle s'active d'elle-même après l'installation et un redémarrage du système."
+        },
+        "he": {
+          "title": "מפות בלוח המחוונים",
+          "description": "מציג את המפה של CarPlay או Android Auto בלוח המחוונים, וב-HUD אם תבחרו. ברכבים נתמכים היא מופעלת מעצמה לאחר ההתקנה והפעלה מחדש של המערכת."
+        },
+        "hu": {
+          "title": "Térkép a műszerfalon",
+          "description": "Megjeleníti a CarPlay vagy Android Auto térképet a műszerfalon, és ha kéri, a HUD-on is. Támogatott autókon a telepítés és a fejegység újraindítása után magától bekapcsol."
+        },
+        "id": {
+          "title": "Peta di panel instrumen",
+          "description": "Menampilkan peta CarPlay atau Android Auto di panel instrumen, dan di HUD jika Anda memilihnya. Pada mobil yang didukung, peta aktif dengan sendirinya setelah dipasang dan head unit dimulai ulang."
+        },
+        "it": {
+          "title": "Mappe sul quadro",
+          "description": "Mostra la mappa di CarPlay o Android Auto sul quadro strumenti e, se vuoi, sull'HUD. Sulle auto supportate si attiva da sola dopo l'installazione e il riavvio del sistema."
+        },
+        "ja": {
+          "title": "地図 メーター表示",
+          "description": "CarPlay または Android Auto の地図をメーターに表示します。選べば HUD にも表示します。対応車両では、インストールしてヘッドユニットを再起動すると自動でオンになります。"
+        },
+        "ko": {
+          "title": "지도 계기판 표시",
+          "description": "CarPlay 또는 Android Auto 지도를 계기판에 표시하고, 선택하면 HUD에도 표시합니다. 지원되는 차량에서는 설치 후 헤드 유닛을 재시작하면 자동으로 켜집니다."
+        },
+        "nb": {
+          "title": "Kart i instrumentpanelet",
+          "description": "Viser CarPlay- eller Android Auto-kartet i instrumentpanelet og, om du vil, på HUD. På støttede biler slår det seg på av seg selv etter installering og omstart av hovedenheten."
+        },
+        "nl": {
+          "title": "Kaarten in instrumentpaneel",
+          "description": "Toont de CarPlay- of Android Auto-kaart in het instrumentpaneel en, als je dat kiest, op de HUD. Op ondersteunde auto's gaat hij vanzelf aan na de installatie en een herstart van de headunit."
+        },
+        "pl": {
+          "title": "Mapy na zegarach",
+          "description": "Wyświetla mapę CarPlay lub Android Auto na zegarach, a jeśli wybierzesz, także na HUD. W obsługiwanych autach włącza się sama po instalacji i ponownym uruchomieniu jednostki głównej."
+        },
+        "pt-BR": {
+          "title": "Mapas no painel",
+          "description": "Mostra o mapa do CarPlay ou do Android Auto no painel de instrumentos e, se você quiser, no HUD. Em carros compatíveis, liga sozinho depois de instalar e reiniciar a unidade principal."
+        },
+        "pt": {
+          "title": "Mapas no quadrante",
+          "description": "Mostra o mapa do CarPlay ou do Android Auto no quadrante e, se quiser, no HUD. Em carros compatíveis, liga-se sozinho depois de o instalar e reiniciar a unidade principal."
+        },
+        "ro": {
+          "title": "Hărți pe bord",
+          "description": "Afișează harta CarPlay sau Android Auto pe bord și, dacă alegeți, pe HUD. Pe mașinile compatibile pornește singură după instalare și repornirea unității."
+        },
+        "ru": {
+          "title": "Карты на приборах",
+          "description": "Показывает карту CarPlay или Android Auto на приборной панели, а по желанию — на HUD. На поддерживаемых автомобилях включается сама после установки и перезапуска головного устройства."
+        },
+        "sk": {
+          "title": "Mapy na prístrojovke",
+          "description": "Zobrazí mapu CarPlay alebo Android Auto na prístrojovom paneli a podľa voľby aj na HUD. Na podporovaných autách sa zapne sám po inštalácii a reštarte jednotky."
+        },
+        "sl": {
+          "title": "Zemljevidi na armaturi",
+          "description": "Prikaže zemljevid CarPlay ali Android Auto na armaturi in po želji na HUD. Na podprtih avtomobilih se vklopi sam po namestitvi in ponovnem zagonu enote."
+        },
+        "sv": {
+          "title": "Kartor i kombiinstrumentet",
+          "description": "Visar CarPlay- eller Android Auto-kartan i kombiinstrumentet och, om du vill, på HUD. På bilar som stöds slås den på av sig själv efter installationen och en omstart av huvudenheten."
+        },
+        "th": {
+          "title": "แผนที่บนหน้าปัด",
+          "description": "แสดงแผนที่ CarPlay หรือ Android Auto บนหน้าปัด และบน HUD หากคุณเลือก ในรถที่รองรับ จะเปิดใช้งานเองหลังติดตั้งและรีสตาร์ทเฮดยูนิต"
+        },
+        "tr": {
+          "title": "Haritalar göstergede",
+          "description": "CarPlay veya Android Auto haritasını göstergede, isterseniz HUD'da da gösterir. Desteklenen araçlarda kurulumdan ve ana ünitenin yeniden başlatılmasından sonra kendiliğinden açılır."
+        },
+        "uk": {
+          "title": "Карти на приладах",
+          "description": "Показує карту CarPlay або Android Auto на приладовій панелі, а за бажанням — на HUD. На підтримуваних автомобілях вмикається сама після встановлення та перезапуску головного пристрою."
+        },
+        "vi": {
+          "title": "Bản đồ trên bảng đồng hồ",
+          "description": "Hiển thị bản đồ CarPlay hoặc Android Auto trên bảng đồng hồ, và trên HUD nếu bạn chọn. Trên xe được hỗ trợ, tự bật sau khi cài đặt và khởi động lại hệ thống."
+        },
+        "zh-CN": {
+          "title": "地图仪表盘显示",
+          "description": "在仪表盘上显示 CarPlay 或 Android Auto 地图，也可选择显示在 HUD 上。在支持的车辆上，安装并重启主机后自动开启。"
+        },
+        "zh-TW": {
+          "title": "地圖儀表板顯示",
+          "description": "在儀表板上顯示 CarPlay 或 Android Auto 地圖，也可選擇顯示在 HUD 上。在支援的車輛上，安裝並重新啟動主機後自動開啟。"
+        }
+      },
+      "icon": "extra/robertn_waze_cluster.png",
+      "iconSha256": "d12bfc8fdbf591b938ba602c802f2829673345fca665e03cb629cd22daf9d087"
+    },
+    {
+      "id": "waze-on-cluster",
+      "kind": "tool",
+      "title": "Maps on cluster",
+      "description": "Runs the cluster map in the background. It is installed with the Maps on cluster app, which you use to control it.",
+      "version": "0.14.19",
+      "artifact": {
+        "name": "waze-on-cluster@0.14.19.tgz",
+        "size": 2916804,
+        "sha256": "8de8f77474e910b89fd0253c15d191b13c53a2ad3c561ad11df9fc1ed3c3d7fa",
+        "url": "packages/waze-on-cluster@0.14.19.tgz"
+      },
+      "requires": {
+        "mgu-deploy": "0.7.17",
+        "cluster-render": "0.5.3"
+      },
+      "mguHmi": [
+        "ID7"
+      ],
+      "uninstallable": true,
+      "texts": {
+        "ar": {
+          "title": "الخرائط على لوحة العدادات",
+          "description": "يشغّل خريطة لوحة العدادات في الخلفية. يُثبَّت مع تطبيق الخرائط على لوحة العدادات، ومنه تتحكم به."
+        },
+        "cs": {
+          "title": "Mapy na přístrojovém štítu",
+          "description": "Na pozadí spouští mapu na přístrojovém štítu. Instaluje se s aplikací Mapy na přístrojovém štítu, ve které ho ovládáte."
+        },
+        "da": {
+          "title": "Kort i instrumentpanelet",
+          "description": "Kører kortet i instrumentpanelet i baggrunden. Det installeres sammen med appen Kort i instrumentpanelet, som du styrer det fra."
+        },
+        "de": {
+          "title": "Karten im Kombiinstrument",
+          "description": "Betreibt die Karte im Kombiinstrument im Hintergrund. Wird mit der App Karten im Kombiinstrument installiert, über die Sie es steuern."
+        },
+        "el": {
+          "title": "Χάρτες στα όργανα",
+          "description": "Εκτελεί στο παρασκήνιο τον χάρτη στα όργανα. Εγκαθίσταται μαζί με την εφαρμογή Χάρτες στα όργανα, από την οποία το ελέγχετε."
+        },
+        "es-US": {
+          "title": "Mapas en el tablero",
+          "description": "Ejecuta en segundo plano el mapa en el tablero. Se instala con la aplicación Mapas en el tablero, desde la que lo controlas."
+        },
+        "es": {
+          "title": "Mapas en el cuadro",
+          "description": "Ejecuta en segundo plano el mapa en el cuadro. Se instala con la app Mapas en el cuadro, desde la que lo controlas."
+        },
+        "fi": {
+          "title": "Kartat mittaristossa",
+          "description": "Ajaa mittariston karttaa taustalla. Asentuu Kartat mittaristossa -sovelluksen mukana, ja sitä ohjataan sovelluksesta."
+        },
+        "fr-CA": {
+          "title": "Cartes au combiné",
+          "description": "Fait fonctionner en arrière-plan la carte au combiné. Installé avec l'application Cartes au combiné, depuis laquelle vous le contrôlez."
+        },
+        "fr": {
+          "title": "Cartes au combiné",
+          "description": "Fait fonctionner en arrière-plan la carte au combiné. Installé avec l'app Cartes au combiné, depuis laquelle vous le contrôlez."
+        },
+        "he": {
+          "title": "מפות בלוח המחוונים",
+          "description": "מפעיל ברקע את המפה בלוח המחוונים. מותקן יחד עם האפליקציה מפות בלוח המחוונים, שממנה שולטים בו."
+        },
+        "hu": {
+          "title": "Térkép a műszerfalon",
+          "description": "A háttérben futtatja a műszerfal térképét. A Térkép a műszerfalon alkalmazással együtt települ, abból vezérelhető."
+        },
+        "id": {
+          "title": "Peta di panel instrumen",
+          "description": "Menjalankan peta di panel instrumen di latar belakang. Terpasang bersama aplikasi Peta di panel instrumen, tempat Anda mengendalikannya."
+        },
+        "it": {
+          "title": "Mappe sul quadro",
+          "description": "Esegue in background la mappa sul quadro. Si installa con l'app Mappe sul quadro, da cui lo controlli."
+        },
+        "ja": {
+          "title": "地図 メーター表示",
+          "description": "メーターの地図をバックグラウンドで動かします。地図 メーター表示アプリと一緒にインストールされ、アプリから操作します。"
+        },
+        "ko": {
+          "title": "지도 계기판 표시",
+          "description": "계기판 지도를 백그라운드에서 실행합니다. 지도 계기판 표시 앱과 함께 설치되며, 앱에서 제어합니다."
+        },
+        "nb": {
+          "title": "Kart i instrumentpanelet",
+          "description": "Kjører kartet i instrumentpanelet i bakgrunnen. Installeres sammen med appen Kart i instrumentpanelet, som du styrer det fra."
+        },
+        "nl": {
+          "title": "Kaarten in instrumentpaneel",
+          "description": "Laat de kaart in het instrumentpaneel op de achtergrond draaien. Wordt geïnstalleerd met de app Kaarten in instrumentpaneel, waarmee je het bedient."
+        },
+        "pl": {
+          "title": "Mapy na zegarach",
+          "description": "Obsługuje w tle mapę na zegarach. Instaluje się razem z aplikacją Mapy na zegarach, z której nim sterujesz."
+        },
+        "pt-BR": {
+          "title": "Mapas no painel",
+          "description": "Executa em segundo plano o mapa no painel. É instalado com o app Mapas no painel, de onde você o controla."
+        },
+        "pt": {
+          "title": "Mapas no quadrante",
+          "description": "Executa em segundo plano o mapa no quadrante. É instalado com a app Mapas no quadrante, a partir da qual o controla."
+        },
+        "ro": {
+          "title": "Hărți pe bord",
+          "description": "Rulează în fundal harta de pe bord. Se instalează odată cu aplicația Hărți pe bord, din care îl controlați."
+        },
+        "ru": {
+          "title": "Карты на приборах",
+          "description": "Работает в фоне и выводит карту на приборы. Устанавливается вместе с приложением Карты на приборах, через которое им и управляют."
+        },
+        "sk": {
+          "title": "Mapy na prístrojovke",
+          "description": "Na pozadí spúšťa mapu na prístrojovke. Inštaluje sa s aplikáciou Mapy na prístrojovke, v ktorej ho ovládate."
+        },
+        "sl": {
+          "title": "Zemljevidi na armaturi",
+          "description": "V ozadju poganja zemljevid na armaturi. Namesti se skupaj z aplikacijo Zemljevidi na armaturi, v kateri ga upravljate."
+        },
+        "sv": {
+          "title": "Kartor i kombiinstrumentet",
+          "description": "Kör kartan i kombiinstrumentet i bakgrunden. Installeras med appen Kartor i kombiinstrumentet, som du styr den från."
+        },
+        "th": {
+          "title": "แผนที่บนหน้าปัด",
+          "description": "ทำงานเบื้องหลังเพื่อแสดงแผนที่บนหน้าปัด ติดตั้งมาพร้อมแอป แผนที่บนหน้าปัด ซึ่งใช้ควบคุมการทำงาน"
+        },
+        "tr": {
+          "title": "Haritalar göstergede",
+          "description": "Gösterge haritasını arka planda çalıştırır. Haritalar göstergede uygulamasıyla birlikte kurulur ve o uygulamadan kontrol edilir."
+        },
+        "uk": {
+          "title": "Карти на приладах",
+          "description": "Працює у фоні й виводить карту на прилади. Встановлюється разом із застосунком Карти на приладах, через який ним і керують."
+        },
+        "vi": {
+          "title": "Bản đồ trên bảng đồng hồ",
+          "description": "Chạy bản đồ trên bảng đồng hồ ở chế độ nền. Được cài cùng ứng dụng Bản đồ trên bảng đồng hồ, nơi bạn điều khiển nó."
+        },
+        "zh-CN": {
+          "title": "地图仪表盘显示",
+          "description": "在后台运行仪表盘地图。随“地图仪表盘显示”应用一起安装，在应用中进行控制。"
+        },
+        "zh-TW": {
+          "title": "地圖儀表板顯示",
+          "description": "在背景執行儀表板地圖。隨「地圖儀表板顯示」App 一起安裝，並在 App 中控制。"
+        }
+      }
+    }
+  ]
+}
