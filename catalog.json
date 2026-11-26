@@ -217,12 +217,12 @@
       "kind": "tool",
       "title": "Maps on cluster",
       "description": "Runs the cluster map in the background. It is installed with the Maps on cluster app, which you use to control it.",
-      "version": "0.14.19",
+      "version": "0.14.20",
       "artifact": {
-        "name": "waze-on-cluster@0.14.19.tgz",
-        "size": 2916804,
-        "sha256": "8de8f77474e910b89fd0253c15d191b13c53a2ad3c561ad11df9fc1ed3c3d7fa",
-        "url": "packages/waze-on-cluster@0.14.19.tgz"
+        "name": "waze-on-cluster@0.14.20.tgz",
+        "size": 2916818,
+        "sha256": "b4e8e0f8a811c2ea93e4a98a883e3120112299b5f48cc1c6285734fe3bab4b24",
+        "url": "packages/waze-on-cluster@0.14.20.tgz"
       },
       "requires": {
         "mgu-deploy": "0.7.17",
