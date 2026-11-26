@@ -11,4 +11,6 @@ void mgu_hud_want(int on);
 /* the layout: size (20..100 % of the HUD), place (0..100 % of the room left: 0 left or top, 50 the middle), packed
  * (cluster-render's packed 4x4 blocks where it offers them: a third of the bytes, smoother) */
 void mgu_hud_layout(int size, int x, int y, int packed);
+/* how far ahead of the screen a mirrored picture goes (0..500 ms): the cluster's own delay */
+void mgu_hud_lead(int ms);
 #endif

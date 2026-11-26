@@ -40,7 +40,7 @@ const MINUTES = 60;
 const EXTEND_BELOW_MS = 10 * 60000;
 // the service version this app is built with: an older one still running (its files were updated, the
 // process not) is asked to end, and the socket starts the new one at the next request
-const SERVICE_VERSION = '1.7.0';
+const SERVICE_VERSION = '1.8.0';
 const older = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 const GREEN = '#2fd27a', AMBER = '#ffb020', RED = '#ef2b2d';
 
@@ -363,7 +363,7 @@ mgu.run({
                 hudAsked = hudWant;
                 // its size (% of the HUD) and place (% of the room left), and cluster-render's lighter packed blocks
                 const lay = hudLayout();
-                ask('hud', { on: hudWant, size: lay.size, x: lay.x, y: lay.y, packed: ctx.settings.get('hudQuality') !== 'sharp' })
+                ask('hud', { on: hudWant, size: lay.size, x: lay.x, y: lay.y, packed: ctx.settings.get('hudQuality') !== 'sharp', lead: num('hudLead', 150) })
                     .then((r) => { if (r) st = r; });
             }
             if (shown()) { goneAt = 0; ended = false; return; }

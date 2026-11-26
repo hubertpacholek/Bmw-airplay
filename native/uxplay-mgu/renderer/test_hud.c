@@ -6,8 +6,9 @@
  * wanted, the HUD gets hello, one video layer the picture's shape (800x368, centred) and frames of only the picture
  * in cluster-render's atlas (U and V side by side); a smaller size makes the layer again (dropping the old one), a
  * new place only moves it; a 30 fps film on a 400x184 layer not packed goes at an even 10 a second (every 3rd
- * picture), on a 40 % packed one every picture; packed blocks where the service offers them; asked no more, it goes
- * off within 3 s; "hud off" at once.
+ * picture), on a 40 % packed one every picture; mirrored, the decoder's early pictures each 150 ms (the lead) before
+ * its screen time; packed blocks where the service offers them; asked no more, it goes off within 3 s; "hud off" at
+ * once.
  */
 #include <assert.h>
 #include <errno.h>
@@ -30,6 +31,35 @@ static char g_frame_path[256], g_sock_path[256];
 const char *mgu_video_path(void) { return g_frame_path; }
 void mgu_video_picture(unsigned *x, unsigned *y, unsigned *w, unsigned *h) { *x = 180, *y = 0, *w = 1560, *h = 720; }
 unsigned mgu_video_film(unsigned *x, unsigned *y, unsigned *w, unsigned *h) { *x = *y = *w = *h = 0; return 0; }
+
+/* the decoder's early pictures: none (a played video) until g_early_t0 is set; then picture i (Y 40 + i, 640x360)
+ * has its screen time at g_early_t0 + i * 33.3 ms + 200 ms (the jitter buffer) and comes out of the decoder 200 ms
+ * before it */
+static int64_t g_early_t0;
+static int g_early_on;
+static int64_t mono(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (int64_t) t.tv_sec * 1000000000LL + t.tv_nsec; }
+void mgu_video_early(int on) { g_early_on = on; }
+int mgu_video_early_take(long long until_ns, unsigned *last, unsigned char *dst, size_t cap, unsigned *w, unsigned *h,
+                         unsigned rect[4], unsigned *newest) {
+    if (!g_early_t0) return -1;
+    const int64_t now = mono();
+    int out = (int) ((now - g_early_t0) / 33333333LL);           /* decoded so far */
+    if (out < 0) return 0;
+    if (out > 150) out = 150;
+    *newest = (unsigned) out + 1;
+    int best = -1;
+    for (int i = 0; i <= out; i++) {
+        const int64_t due = g_early_t0 + i * 33333333LL + 200000000LL;
+        if ((unsigned) i + 1 > *last && due <= until_ns) best = i;
+    }
+    if (best < 0 || cap < 640 * 360 * 3 / 2) return 0;
+    memset(dst, 40 + best, 640 * 360);
+    memset(dst + 640 * 360, 128, 640 * 360 / 2);
+    *w = 640, *h = 360;
+    rect[0] = rect[1] = 0, rect[2] = 640, rect[3] = 360;
+    *last = (unsigned) best + 1;
+    return 1;
+}
 
 static char g_events[4096];
 static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
@@ -266,6 +296,29 @@ int main(void) {
     want();
     printf("40 %% packed: layer 320x144: %s, %d frames in 2 s\n", layer40 ? "ok" : "MISSING", frames);
     assert(layer40 && frames >= 54 && frames <= 64);
+
+    /* mirrored: the decoder's early pictures, each sent 150 ms (the lead) before its screen time */
+    mgu_hud_lead(150);
+    g_early_t0 = mono();
+    int checked = 0;
+    double worst = 0;
+    t0 = now();
+    while (now() - t0 < 2.5) {
+        if (now() - g_asked > 1) want();
+        struct pollfd pf = { c, POLLIN, 0 };
+        if (poll(&pf, 1, 50) != 1) continue;
+        assert(next_msg(c, &type, &body, &len, now() + 2) == 0);
+        if (type == 'F' && len > 14 + 1000) {
+            const int64_t at = mono();
+            const int i = body[14] - 40;                                   /* the picture's number, from its luma */
+            const double off = (double) (at - (g_early_t0 + i * 33333333LL + 200000000LL - 150000000LL)) / 1e6;
+            if (i > 6) { checked++; if (off < 0 ? -off > worst : off > worst) worst = off < 0 ? -off : off; }
+        }
+        free(body);
+    }
+    printf("early pictures: %d checked, each within %.0f ms of its screen time less 150 ms\n", checked, worst);
+    assert(checked >= 40 && worst < 30 && g_early_on);
+    g_early_t0 = 0;
 
     /* "hud off" at once */
     usleep(200000);

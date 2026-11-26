@@ -1,7 +1,7 @@
 {
   "id": "hp-airplay",
   "kind": "tool",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "license": "GPL-3.0-or-later",
   "title": "AirPlay HP service",
   "description": "For the app AirPlay HP: the AirPlay receiver \"BMW iDrive\" (UxPlay's protocol on the head unit). The iPhone's screen mirroring, evened out by a jitter buffer, decoded on the GPU into mgu-render's frame file and its sound into SmartXbar's CarLife input; a video sent with the AirPlay button (YouTube) played by its own player from the internet (mgu-uplink, through a proxy running as uid 13102). Opens the firewall for its ports only while the receiver runs. The picture on the head-up display too, through cluster-render when it is installed.",

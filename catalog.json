@@ -5,7 +5,7 @@
     {
       "id": "hp-airplay",
       "kind": "tool",
-      "version": "1.7.0",
+      "version": "1.8.0",
       "title": "AirPlay HP service",
       "description": "For the app AirPlay HP: the AirPlay receiver \"BMW iDrive\" (UxPlay's protocol on the head unit). The iPhone's screen mirroring, evened out by a jitter buffer, decoded on the GPU into mgu-render's frame file and its sound into SmartXbar's CarLife input; a video sent with the AirPlay button (YouTube) played by its own player from the internet (mgu-uplink, through a proxy running as uid 13102). Opens the firewall for its ports only while the receiver runs. The picture on the head-up display too, through cluster-render when it is installed.",
       "author": "hubertpacholek, aurelmarius",
@@ -13,10 +13,10 @@
         "ID7"
       ],
       "artifact": {
-        "name": "hp-airplay@1.7.0.tgz",
-        "size": 3225688,
-        "sha256": "2eb23f8de0e01d53312cab857c14bdd9873945ac6081d460601d721360e7f86c",
-        "url": "packages/hp-airplay@1.7.0.tgz"
+        "name": "hp-airplay@1.8.0.tgz",
+        "size": 3227047,
+        "sha256": "8ea5d2a75791a0ddd695304df3fa41ed2610ec2fe88df14fe00fb7352893570e",
+        "url": "packages/hp-airplay@1.8.0.tgz"
       },
       "requires": {
         "mgu-deploy": "0.7.0",
@@ -33,7 +33,7 @@
     {
       "id": "hp_airplay",
       "kind": "app",
-      "version": "1.7.1",
+      "version": "1.8.0",
       "title": "AirPlay HP",
       "description": "The head unit as an AirPlay receiver for an iPhone: screen mirroring on the centre screen with the sound on the car's speakers (also with wireless CarPlay connected), and videos sent with the AirPlay button (YouTube) played by the head unit itself, with their controls on the iDrive. The picture shows while parked. Needs the AirPlay HP service.",
       "author": "hubertpacholek, aurelmarius",
@@ -41,13 +41,13 @@
         "ID7"
       ],
       "artifact": {
-        "name": "hp_airplay@1.7.1.tgz",
-        "size": 635378,
-        "sha256": "3d3e8a240bb96b50c0dc17a05737266965a63bc9e07c169ce5e3e6b22711b883",
-        "url": "packages/hp_airplay@1.7.1.tgz"
+        "name": "hp_airplay@1.8.0.tgz",
+        "size": 635764,
+        "sha256": "935aee710abc415c11b3d4e8bc66b79fc979d00617721b44e5446bd7d3245d1c",
+        "url": "packages/hp_airplay@1.8.0.tgz"
       },
       "requires": {
-        "hp-airplay": "1.7.0"
+        "hp-airplay": "1.8.0"
       },
       "uninstallable": true,
       "icon": "hp_airplay.png",

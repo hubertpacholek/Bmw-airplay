@@ -180,8 +180,9 @@ What the Store's tools learned the hard way (mgu-store, waze-on-cluster), and ho
 
 Control: one JSON object per line on the socket, `{"cmd":"status"}`, `{"cmd":"start","minutes":15}` (`"mode":"receiver"`,
 `"hls":true` for the receiver with the video button),
-`{"cmd":"hud","on":true|false,"size":100,"x":50,"y":50,"packed":true}` (the picture on the head-up display, `size` %
-of it placed at `x` %, `y` % of the room left, `packed` cluster-render's lighter blocks: the app asks each second while its setting
+`{"cmd":"hud","on":true|false,"size":100,"x":50,"y":50,"packed":true,"lead":150}` (the picture on the head-up
+display, `size` % of it placed at `x` %, `y` % of the room left, `packed` cluster-render's lighter blocks, a mirrored
+picture `lead` ms ahead of the screen: the app asks each second while its setting
 "Picture on the HUD" lets it, only while parked or also while driving, and the receiver takes it off 3 s after the
 last ask; its state is the status's `rx.hud`),
 `{"cmd":"stop"}`, `{"cmd":"exit"}`; the reply is the status. The last test's status is kept in

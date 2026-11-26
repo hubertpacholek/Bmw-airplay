@@ -27,6 +27,13 @@ void mgu_video_picture(unsigned *x, unsigned *y, unsigned *w, unsigned *h);
 /* where a film is within the picture, its own black bars left out (w 0: no bars found); returns a count that changes
  * with it */
 unsigned mgu_video_film(unsigned *x, unsigned *y, unsigned *w, unsigned *h);
+/* the HUD's early pictures: kept while on (mirroring only, as each comes out of the decoder, before its wait) */
+void mgu_video_early(int on);
+/* the newest early picture after *last whose screen time is until_ns or before (CLOCK_MONOTONIC), copied to dst (cap
+ * bytes; I420 w x h) with its rect (the film's, else the picture's): 1, *last its count; 0 none; -1 none came for 1 s
+ * (no mirroring: a played video goes through the frame file). *newest: the newest count kept. */
+int mgu_video_early_take(long long until_ns, unsigned *last, unsigned char *dst, size_t cap, unsigned *w, unsigned *h,
+                         unsigned rect[4], unsigned *newest);
 #ifdef __cplusplus
 }
 #endif

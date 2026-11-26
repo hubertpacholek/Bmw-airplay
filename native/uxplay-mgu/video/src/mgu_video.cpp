@@ -14,9 +14,12 @@
  *
  * One mutex: frames come from UxPlay's mirror thread, stop from another.
  */
+#include <atomic>
 #include <errno.h>
 #include <mutex>
+#include <vector>
 #include <stdio.h>
+#include <time.h>
 #include <stdlib.h>
 #include <string.h>
 #include <string>
@@ -49,6 +52,65 @@ volatile uint32_t g_pic[4] = {0, 0, 0, 0};
 FilmBars g_bars;
 volatile uint32_t g_film[4] = {0, 0, 0, 0};
 volatile unsigned g_film_seq = 0;
+/* The HUD's early pictures (renderer/mgu_hud.c): while it wants them, each mirrored picture is also kept here as it
+ * comes out of the decoder, before it waits for its time on the screen, with that time; at half size when it is 1600
+ * or wider (the HUD shows 800 at most). The HUD sends each ahead of the screen by the cluster's own delay, so both show
+ * it together. A ring of kEarly (12: 400 ms at 30 fps, more than the jitter buffer holds), its own lock. */
+const int kEarly = 12;
+struct EarlyPic {
+    std::vector<uint8_t> px;
+    uint32_t w = 0, h = 0, rect[4] = {0, 0, 0, 0};
+    int64_t due_ns = 0;
+    unsigned seq = 0;
+};
+std::mutex g_early_mu;
+EarlyPic g_early[kEarly];
+unsigned g_early_seq = 0;
+int64_t g_early_at = 0;                    /* when the last one came, CLOCK_MONOTONIC ns */
+std::atomic<bool> g_early_on(false);
+
+int64_t mono_ns() {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t) ts.tv_sec * 1000000000LL + ts.tv_nsec;
+}
+
+/* the decoder's NV12 picture into the ring, I420, halved when wide; its rect (the film's, else the picture's) too */
+void early_put(const woc::VideoFrame &f) {
+    const uint32_t k = f.w >= 1600 ? 2 : 1, w = (f.w / k) & ~1u, h = (f.h / k) & ~1u;
+    if (w < 16 || h < 16) return;
+    std::lock_guard<std::mutex> l(g_early_mu);
+    EarlyPic &e = g_early[g_early_seq % kEarly];
+    e.px.resize((size_t) w * h * 3 / 2);
+    uint8_t *y = e.px.data(), *u = y + (size_t) w * h, *v = u + (size_t) (w / 2) * (h / 2);
+    for (uint32_t r = 0; r < h; r++) {
+        const uint8_t *s0 = f.y + (size_t) (r * k) * f.pitch, *s1 = f.y + (size_t) (r * k + k - 1) * f.pitch;
+        uint8_t *o = y + (size_t) r * w;
+        if (k == 1) { memcpy(o, s0, w); continue; }
+        for (uint32_t c = 0; c < w; c++) o[c] = (uint8_t) ((s0[2 * c] + s0[2 * c + 1] + s1[2 * c] + s1[2 * c + 1] + 2) >> 2);
+    }
+    for (uint32_t r = 0; r < h / 2; r++) {
+        const uint8_t *s0 = f.uv + (size_t) (r * k) * f.pitch, *s1 = f.uv + (size_t) (r * k + k - 1) * f.pitch;
+        uint8_t *ou = u + (size_t) r * (w / 2), *ov = v + (size_t) r * (w / 2);
+        for (uint32_t c = 0; c < w / 2; c++) {
+            if (k == 1) { ou[c] = s0[2 * c]; ov[c] = s0[2 * c + 1]; continue; }
+            const uint8_t *a = s0 + 4 * c, *b = s1 + 4 * c;
+            ou[c] = (uint8_t) ((a[0] + a[2] + b[0] + b[2] + 2) >> 2);
+            ov[c] = (uint8_t) ((a[1] + a[3] + b[1] + b[3] + 2) >> 2);
+        }
+    }
+    uint32_t x = g_film[2] ? g_film[0] : f.pic_x, yy = g_film[2] ? g_film[1] : f.pic_y;
+    uint32_t rw = g_film[2] ? g_film[2] : f.pic_w, rh = g_film[2] ? g_film[3] : f.pic_h;
+    if (!rw || !rh || x + rw > f.w || yy + rh > f.h) x = yy = 0, rw = f.w, rh = f.h;
+    e.rect[0] = (x / k) & ~1u, e.rect[1] = (yy / k) & ~1u, e.rect[2] = (rw / k) & ~1u, e.rect[3] = (rh / k) & ~1u;
+    if (e.rect[0] + e.rect[2] > w) e.rect[2] = (w - e.rect[0]) & ~1u;
+    if (e.rect[1] + e.rect[3] > h) e.rect[3] = (h - e.rect[1]) & ~1u;
+    e.w = w, e.h = h;
+    e.due_ns = f.pts_ms >= 0 ? (int64_t) f.pts_ms * 1000000LL : mono_ns();
+    e.seq = ++g_early_seq;
+    g_early_at = mono_ns();
+}
+
 void film_reset() {
     film_bars_reset(&g_bars);
     if (g_film[2]) { g_film[0] = g_film[1] = g_film[2] = g_film[3] = 0; g_film_seq++; }
@@ -94,6 +156,7 @@ static int frame_locked(const unsigned char *data, int len, long long pts_ms, in
         std::string err;
         const bool ok = g_dec->feed(data, (size_t) len, [&](const woc::VideoFrame &f) {
             if (!f.y) return;
+            if (!g_native && g_early_on.load()) early_put(f);   /* mirroring: the HUD's copy, before the wait */
             if (wait && wait(f.pts_ms, arg) != 0) return;
             if (g_native && (!g_file || (f.w & ~1u) != g_w || (f.h & ~1u) != g_h)) {
                 /* the stream's own size: the frame file made (again) for it */
@@ -191,6 +254,26 @@ extern "C" void mgu_video_picture(unsigned *x, unsigned *y, unsigned *w, unsigne
 extern "C" unsigned mgu_video_film(unsigned *x, unsigned *y, unsigned *w, unsigned *h) {
     *x = g_film[0], *y = g_film[1], *w = g_film[2], *h = g_film[3];
     return g_film_seq;
+}
+
+extern "C" void mgu_video_early(int on) { g_early_on.store(on != 0); }
+
+extern "C" int mgu_video_early_take(long long until_ns, unsigned *last, unsigned char *dst, size_t cap, unsigned *w, unsigned *h,
+                                    unsigned rect[4], unsigned *newest) {
+    std::lock_guard<std::mutex> l(g_early_mu);
+    if (!g_early_seq || mono_ns() - g_early_at > 1000000000LL) return -1;
+    *newest = g_early_seq;
+    const EarlyPic *best = nullptr;
+    for (int i = 0; i < kEarly; i++) {
+        const EarlyPic &e = g_early[i];
+        if (e.seq && e.seq > *last && e.due_ns <= until_ns && (!best || e.seq > best->seq)) best = &e;
+    }
+    if (!best || best->px.size() > cap) return 0;
+    memcpy(dst, best->px.data(), best->px.size());
+    *w = best->w, *h = best->h;
+    for (int i = 0; i < 4; i++) rect[i] = best->rect[i];
+    *last = best->seq;
+    return 1;
 }
 
 extern "C" const char *mgu_video_error(void) { return g_err.c_str(); }

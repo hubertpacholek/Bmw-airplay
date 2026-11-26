@@ -485,13 +485,13 @@ test('receiver with the video button: -hls and the H.264 filter, the proxy for i
         const got = probe.status().rx.lines.filter((l) => / stdin /.test(l)).map((l) => l.replace(/^.* stdin /, ''));
         assert.deepStrictEqual(got, ['pause', 'seek 61.500']);
         // the picture on the HUD: the app's ask reaches the receiver, its state comes back in the status
-        probe.hud(true, { size: 80, x: 20, y: 50, packed: false });
+        probe.hud(true, { size: 80, x: 20, y: 50, packed: false, lead: 120 });
         await new Promise((r) => setTimeout(r, 200));
         assert.deepStrictEqual(probe.status().rx.hud && probe.status().rx.hud.state, 'shown');
         probe.hud(false);
         await new Promise((r) => setTimeout(r, 200));
         assert.strictEqual(probe.status().rx.hud.state, 'off');
-        assert.deepStrictEqual(probe.status().rx.lines.filter((l) => / stdin hud /.test(l)).map((l) => l.replace(/^.* stdin /, '')), ['hud on 80 20 50 0', 'hud off']);
+        assert.deepStrictEqual(probe.status().rx.lines.filter((l) => / stdin hud /.test(l)).map((l) => l.replace(/^.* stdin /, '')), ['hud on 80 20 50 0 120', 'hud off']);
         assert.ok(/PASS: the head unit plays the video the iPhone sent \(1920x1080\)/.test(s.verdict.text), s.verdict.text);
         // the setting switched off: the receiver starts again without it, and the proxy goes
         s = await probe.start(1, 'receiver', false);

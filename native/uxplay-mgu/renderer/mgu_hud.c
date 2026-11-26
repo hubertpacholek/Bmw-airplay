@@ -27,6 +27,11 @@
  * HUD goes back to the car's own until the next picture. Not wanted, the connection closes: the layer goes with it,
  * and cluster-render fades the HUD back after its linger.
  *
+ * Mirrored, the screen shows each picture at its time after the jitter buffer (renderer/mgu_jitter.c), and the
+ * cluster takes a while longer to show what it is sent: the HUD would lag the screen. So the HUD takes the decoder's
+ * early copy of each picture (video/src/mgu_video.cpp, made before the picture waits) and sends it LEAD ms (the app's
+ * setting, default 150) before its time on the screen. A played video (no early pictures) goes from the frame file.
+ *
  * Events, when they change: {"ev":"hud","state":"off|connecting|waiting|shown|unavailable|error","reason":"..."}.
  */
 #include <errno.h>
@@ -53,12 +58,15 @@
 #define REPEAT_NS (1000 * MS)
 #define REPEAT_FOR_NS (5000 * MS)
 #define MGVF_MAGIC 0x4656474du
+#define EARLY_MAX ((size_t) 2048 * 1080 * 3 / 2)   /* the largest early picture (mgu_video.cpp halves wide ones) */
 
 static const char *g_sock = "/dev/shm/cluster-render/render.sock";
 static void (*g_emit)(const char *json);
 static volatile int64_t g_want_at;   /* the last "hud on", CLOCK_MONOTONIC ns; 0: not wanted */
 /* the app's layout: size (% of the HUD), place (% of the room left), packed blocks */
 static volatile int g_size = 100, g_x = 50, g_y = 50, g_packed = 1;
+/* how far ahead of the screen a mirrored picture goes: the cluster's own delay, ms */
+static volatile int g_lead = 150;
 static pthread_once_t g_once = PTHREAD_ONCE_INIT;
 
 static int64_t now_ns(void) {
@@ -321,7 +329,10 @@ static void *hud_thread(void *arg) {
     const int max_fps = e && atoi(e) > 0 ? clampi(atoi(e), 1, 30) : 30;
     const int kbps = k && atoi(k) > 0 ? atoi(k) : 1200;
     int64_t next_try = 0, last_sent = 0, last_new = 0, rate_at = 0;
-    uint32_t last_seq = 0, rate_seq = 0;
+    uint32_t last_pic = 0, rate_seq = 0;
+    unsigned early_last = 0;
+    int was_early = 0;
+    unsigned char *ebuf = NULL;
     double src_fps = 0;
     uint64_t frame_id = 0;
     unsigned next_ref = 0;
@@ -333,6 +344,7 @@ static void *hud_thread(void *arg) {
         if (!want || t - want > WANT_NS) {
             if (g_fd >= 0) disconnect();
             unmap();
+            mgu_video_early(0);
             set_state("off", "");
             rate_at = 0;
             usleep(100000);
@@ -348,16 +360,38 @@ static void *hud_thread(void *arg) {
                 continue;
             }
             g_fd = fd;
-            last_seq = 0;
+            last_pic = 0;
             set_state("connecting", "");
             if (send_json("{\"op\":\"hello\",\"app\":\"hp-airplay\",\"proto\":1}")) continue;
         }
         struct pollfd p = { g_fd, POLLIN, 0 };
         if (poll(&p, 1, 5) > 0) read_events();
         if (g_fd < 0 || !g_hw) continue;
-        const struct mgvf_head *h = frame_file();
-        const uint32_t seq = h ? __atomic_load_n(&h->seq, __ATOMIC_ACQUIRE) : 0;
+        mgu_video_early(1);
         const int64_t now = now_ns();
+        /* the picture: mirrored, the decoder's early one whose screen time less the lead has come (so the HUD shows it
+         * with the screen, after the cluster's own delay); a played video, the frame file's newest */
+        if (!ebuf) ebuf = malloc(EARLY_MAX);
+        const unsigned char *frame = NULL;
+        unsigned fw = 0, fh = 0, px = 0, py = 0, pw = 0, ph = 0, er[4], newest = 0;
+        uint32_t seq = 0, pic = 0;
+        const int early = ebuf ? mgu_video_early_take(now + (int64_t) g_lead * MS, &early_last, ebuf, EARLY_MAX, &fw, &fh, er, &newest) : -1;
+        const struct mgvf_head *h = NULL;
+        if (early >= 0) {
+            seq = newest;
+            if (early == 1) { frame = ebuf; pic = early_last; px = er[0], py = er[1], pw = er[2], ph = er[3]; }
+        } else {
+            h = frame_file();
+            seq = h ? __atomic_load_n(&h->seq, __ATOMIC_ACQUIRE) : 0;
+            if (h && seq && seq != last_pic) {
+                const uint32_t slot = __atomic_load_n(&h->slot, __ATOMIC_ACQUIRE) % h->nslot;
+                fw = h->w, fh = h->h, pic = seq;
+                frame = g_map + sizeof *h + (size_t) slot * fw * fh * 3 / 2;
+                mgu_video_film(&px, &py, &pw, &ph);           /* a film without its black bars, */
+                if (!pw || !ph) mgu_video_picture(&px, &py, &pw, &ph);   /* else the picture */
+            }
+        }
+        if ((early >= 0) != was_early) { was_early = early >= 0; rate_at = 0; last_pic = 0; }   /* the other source */
         /* the film's frame rate, measured each second; every n-th picture goes, so they come evenly */
         if (!rate_at || seq < rate_seq) rate_at = now, rate_seq = seq;   /* a new frame file counts from 0 */
         else if (now - rate_at >= 1000 * MS) {
@@ -367,12 +401,7 @@ static void *hud_thread(void *arg) {
         const int cap = g_lfps ? g_lfps : max_fps;
         unsigned n = src_fps > cap ? (unsigned) (src_fps / cap + 0.5) : 1;
         if (!n) n = 1;
-        if (h && seq && seq != last_seq && (!last_seq || (uint32_t) (seq - last_seq) >= n)) {
-            const uint32_t slot = __atomic_load_n(&h->slot, __ATOMIC_ACQUIRE) % h->nslot, fw = h->w, fh = h->h;
-            const unsigned char *frame = g_map + sizeof *h + (size_t) slot * fw * fh * 3 / 2;
-            unsigned px = 0, py = 0, pw = 0, ph = 0;
-            mgu_video_film(&px, &py, &pw, &ph);           /* a film without its black bars, */
-            if (!pw || !ph) mgu_video_picture(&px, &py, &pw, &ph);   /* else the picture */
+        if (frame && pic && pic != last_pic && (!last_pic || (uint32_t) (pic - last_pic) >= n || pic < last_pic)) {
             if (!pw || !ph || px + pw > fw || py + ph > fh) px = py = 0, pw = fw, ph = fh;
             px &= ~1u, py &= ~1u, pw &= ~1u, ph &= ~1u;
             /* the layer: the film's shape fitted into SIZE % of the HUD, placed at X %, Y % of the room left */
@@ -383,7 +412,7 @@ static void *hud_thread(void *arg) {
             else { vh = bh; vw = (unsigned) ((uint64_t) pw * bh / ph); }
             vw &= ~3u;                        /* a video frame: width a multiple of 4, */
             vh &= packed ? ~3u : ~1u;         /* height even (a multiple of 4 packed) */
-            if (vw < 16 || vh < 16) { last_seq = seq; continue; }
+            if (vw < 16 || vh < 16) { last_pic = pic; continue; }
             const unsigned lx = (g_hw - vw) * (unsigned) clampi(g_x, 0, 100) / 100 & ~1u;
             const unsigned ly = (g_hh - vh) * (unsigned) clampi(g_y, 0, 100) / 100 & ~1u;
             char j[320];
@@ -418,7 +447,7 @@ static void *hud_thread(void *arg) {
             memcpy(head + 4, &id, 8);
             head[12] = head[13] = 0;     /* no rects: the whole atlas */
             if (send_msg('F', head, sizeof head, atlas, (size_t) vw * vh * 3 / 2)) continue;
-            last_seq = seq;
+            last_pic = pic;
             last_sent = last_new = now_ns();
         } else if (g_ref && g_can_repeat && last_new && now - last_sent >= REPEAT_NS && now - last_new < REPEAT_FOR_NS) {
             char j[64];
@@ -443,6 +472,8 @@ void mgu_hud_init(void (*emit_json)(const char *json)) {
 }
 
 void mgu_hud_want(int on) { g_want_at = on ? now_ns() : 0; }
+
+void mgu_hud_lead(int ms) { g_lead = clampi(ms, 0, 500); }
 
 void mgu_hud_layout(int size, int x, int y, int packed) {
     g_size = clampi(size, 20, 100), g_x = clampi(x, 0, 100), g_y = clampi(y, 0, 100), g_packed = packed != 0;

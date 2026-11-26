@@ -171,7 +171,7 @@ static char *hls_uri = NULL;     /* the address of the video to play (stage 4), 
 /* The service's commands on stdin, one a line: for a played video, the app's controls on the iDrive (the iPhone
  * follows them through /playback-info, the rate and the position, as it follows its own); for screen mirroring, the
  * jitter buffer's delay; the picture on the HUD.
- *   pause | resume | seek <seconds> | jitter <ms> | hud on [size x y packed] | hud off */
+ *   pause | resume | seek <seconds> | jitter <ms> | hud on [size x y packed [lead]] | hud off */
 static void *mgu_commands(void *arg) {
     (void) arg;
     char line[128];
@@ -180,8 +180,10 @@ static void *mgu_commands(void *arg) {
         int ms = 0;
         if (sscanf(line, "jitter %d", &ms) == 1) mgu_jitter_set_delay(ms);
         else if (!strncmp(line, "hud on", 6)) {    /* each second: not echoed */
-            int sz, hx, hy, pk;
-            if (sscanf(line, "hud on %d %d %d %d", &sz, &hx, &hy, &pk) == 4) mgu_hud_layout(sz, hx, hy, pk);
+            int sz, hx, hy, pk, ld;
+            const int nf = sscanf(line, "hud on %d %d %d %d %d", &sz, &hx, &hy, &pk, &ld);
+            if (nf >= 4) mgu_hud_layout(sz, hx, hy, pk);
+            if (nf == 5) mgu_hud_lead(ld);
             mgu_hud_want(1);
             continue;
         }
